@@ -60,25 +60,31 @@ The intended procedure to remove duplicates with remdups is:
 
    .. code-block:: console
 
-     $remdups --hash 
+     $ remdups --hash > hashes.txt
 
    or 
 
    .. code-block:: console
 
-     $find . -not -type d -exec sha256sum {} \;
+     $ find . -not -type d -exec sha256sum {} \; > hashes.txt
 
 2. make a script with remove commands
+
+   .. code-block:: console
+     
+     $ remdups [options] hashes.txt nodupes.sh
 
 3. inspect the script and go back to 2., if necessary, else 4.
 
 4. execute script
 
+     $ nodupes.sh
+
 5. remove empty directories:
 
    .. code-block:: console
 
-     $find . -empty -type d -delete
+     $ find . -empty -type d -delete
 
 
 All in One
@@ -89,7 +95,7 @@ It is therefore not suitable to iterate with new parameters.
 
 .. code-block:: console
     
-  $ remdups.py
+  $ remdups
 
 
 File Hash List
@@ -128,7 +134,7 @@ For full content ``md5sum`` or ``shaXsum`` (X=1, 224, 256, 384, 512) system tool
 
     .. code-block:: console
 
-      $ find . -path "old" -prune -or -not -type d -and -iname "\*.jpg" -exec remdups.py --exif --hash {} \;
+      $ find . -path "old" -prune -or -not -type d -and -iname "\*.jpg" -exec remdups --exif --hash {} \;
 
 
 Generate the remove script
@@ -147,7 +153,7 @@ or
   $ remdups [options] hashes.txt rm.sh
 
 
-In this stage you would use 
+At this stage you would use 
 
 - ``-i`` and ``-o`` to choose which files get removed
 - ``-c`` to comment out the remove command
