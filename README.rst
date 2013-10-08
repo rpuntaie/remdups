@@ -10,11 +10,12 @@ remdups - remove duplicate files
 remdups
 =======
 
-- it generates a script that removes duplicate files starting from file hashes
-- it can also generate a list of file hashes
+``remdups`` generates a script that removes duplicate files starting from file hashes.
+It can also generate a these file hashes. It allows to specify which files to keep 
+and which to remove. Byte-wise comparison available to be on the safe side.
 
 The resulting script should be further inspected, possibly re-generated with different parameters
-and finally executed separately from your shell.
+and finally executed separately in your shell.
 
 install
 =======
@@ -46,15 +47,14 @@ install
 
   .. code-block:: console
 
-    $ py.test --cov-report  term-missing --cov remdups.py
+    $ py.test test_remdups.py --cov remdups.py --cov-report term-missing
 
-  - consider sharing changes useful for others.
-    (google github pull requests)
+  - consider sharing changes useful for others (github pull request).
 
-Use cases
-=========
+Usage
+=====
 
-The intended procedure with remdups is:
+The intended procedure to remove duplicates with remdups is:
 
 1. create file hash list:
 
@@ -73,6 +73,12 @@ The intended procedure with remdups is:
 3. inspect the script and go back to 2., if necessary, else 4.
 
 4. execute script
+
+5. remove empty directories:
+
+   .. code-block:: console
+
+     $find . -empty -type d -delete
 
 
 All in One
@@ -149,23 +155,33 @@ In this stage you would use
 - ``-x`` to specify the extension used for html files subdirectory.
   It defaults to ``_files``. If it starts with hyphen like ``-Dateien`` do ``-x="-Dateien"``.
 - ``-n`` ``--only-same-name`` to ignore duplicates with different name
-- ``-s`` ``--safe`` to do a final bytewise compare to make sure that files are really the same
+- ``-s`` ``--safe`` to do a final bytewise compare to make sure that files are really the same.
   You should add this option for the final remove script version. It can take a long time.
   After that you possibly still do manual changes to the script and then you execute it.
 
-
 Help
-----
+====
 
 Check out:
 
   $ remdups --help
 
-And look into the code.
-
-
-API
----
-
 For use from within python check out the code.
+
+Similar tools
+=============
+
+http://code.activestate.com/recipes/551777/
+
+This makes all the groups of duplicates using hash plus byte-wise, 
+but one has to decide for each file, which ones to remove.
+
+https://bitbucket.org/othererik/dedupe_copy
+
+``dedupe_copy`` detects duplicates by their hash only while copying and allows automatic reordering.
+It is multi-threaded.
+
+https://github.com/IgnorantGuru/rmdupe
+
+``rmdupe`` is a shell script and uses linux tools to detect and remove duplicates.
 
