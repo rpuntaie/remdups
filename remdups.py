@@ -328,7 +328,7 @@ def remdups(
         else:  # script
             rems = []
             if grps_no or grps_with:
-                rems.append('### vim: set fdm=maker')
+                rems.append('### vim: set fdm=marker')
             if grps_no:
                 rems.append('')
                 rems.append('### No Same Tail {{{')
