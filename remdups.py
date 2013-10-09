@@ -188,7 +188,7 @@ class Hashlist(object):
         dups = [
             paths for h, paths in self.hash_paths.items() if len(paths) > 1]
 
-        def byte_cmp_grps(tail_files):
+        def safe_cmp(tail_files):
             '''form groups based on bytewise comparison'''
             for tail, files in tail_files:
                 cnt = 0
@@ -197,7 +197,11 @@ class Hashlist(object):
                     first = files[0]
                     this.append(first)
                     for other in files[1:]:
-                        if filecmp.cmp(first, other, False):
+                        try:
+                            same = filecmp.cmp(first, other, False)
+                        except (OSError, IOError):
+                            same = True #don't make new group for not existing files
+                        if same:
                             this.append(other)
                         else:
                             new.append(other)
@@ -213,11 +217,11 @@ class Hashlist(object):
             self.no_same_tail = [(tail, paths)
                                  for tail, paths in tail_paths if tail == '']
             if safe:
-                self.no_same_tail = list(byte_cmp_grps(self.no_same_tail))
+                self.no_same_tail = list(safe_cmp(self.no_same_tail))
         self.with_same_tail = [(tail, paths)
                                for tail, paths in tail_paths if tail != '']
         if safe:
-            self.with_same_tail = list(byte_cmp_grps(self.with_same_tail))
+            self.with_same_tail = list(safe_cmp(self.with_same_tail))
         return (self.no_same_tail, self.with_same_tail)
 
 def remdups(
