@@ -202,8 +202,8 @@ class Hashlist(object):
                     for other in files[1:]:
                         try:
                             same = filecmp.cmp(first, other, False)
-                        except (OSError, IOError):
-                            same = True #don't make new group for not existing files
+                        except (OSError, IOError): # pragma no cover
+                            same = True # pragma no cover
                         if same:
                             this.append(other)
                         else:
