@@ -25,7 +25,7 @@ Linux:
 
 
 Windows: 
-    A gave it a try on Windows, but ran into problems due to 
+    A gave it a try on Windows Cmd, but ran into problems due to 
     `Python Issue 1602 <http://bugs.python.org/issue1602>`_.
     So for file names with encodings falling into this issue it won't work.
 
