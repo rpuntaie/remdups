@@ -44,7 +44,11 @@ import re
 
 __all__ = ['sources', 'hash_file', 'walkhash',
            'same_tail', 'Hashlist', 'remdups']
-__version__ = '1.0'
+
+__version__ = '1.0' #this is also in setup.py
+__appname__ = "Remove Duplicate Files"
+__author__  = "Roland Puntaier <roland.puntaier@gmail.com>"
+__license__ = "The MIT License (MIT)"
 
 PY3 = sys.version_info[0] == 3
 
@@ -57,7 +61,6 @@ sources = {'name': 'Create file hash using only file name.',
            'block': 'Create file hash using a starting block.'}
 
 encoding = sys.getfilesystemencoding()
-
 
 def encode(code):
     'return bytes for python 2 and 3'

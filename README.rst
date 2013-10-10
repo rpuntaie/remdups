@@ -177,17 +177,13 @@ For use from within python check out the code.
 Similar tools
 =============
 
-http://code.activestate.com/recipes/551777/
+I had to clean a sprawling directory and used python,
+then decided to make a little command line tool out of it. 
 
-This makes all the groups of duplicates using hash plus byte-wise, 
-but one has to decide for each file, which ones to remove.
+Although I did a little googling before, 
+only afterwards I found other links with similar tools.
+I did not test them because my directory is deduped by now. 
 
-https://bitbucket.org/othererik/dedupe_copy
-
-``dedupe_copy`` detects duplicates by their hash only while copying and allows automatic reordering.
-It is multi-threaded.
-
-https://github.com/IgnorantGuru/rmdupe
-
-``rmdupe`` is a shell script and uses linux tools to detect and remove duplicates.
+I have made a Wikipedia page listing similar tools: 
+`List of Duplicate File Finders <https://en.wikipedia.org/wiki/List_of_duplicate_file_finders>`_
 

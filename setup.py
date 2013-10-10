@@ -3,7 +3,8 @@
 from setuptools import setup
 import platform
 import os, os.path
-from remdups import __version__
+
+__version__ = '1.0'
 
 platform_system = platform.system()
 scripts = ['remdups']
