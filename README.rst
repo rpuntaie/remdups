@@ -17,8 +17,22 @@ and which to remove. Byte-wise comparison available to be on the safe side.
 The resulting script should be further inspected, possibly re-generated with different parameters
 and finally executed separately in your shell.
 
-install
+Known Issues
+============
+
+Linux:
+    None
+
+
+Windows: 
+    A gave it a try on Windows, but ran into problems due to 
+    `Python Issue 1602 <http://bugs.python.org/issue1602>`_.
+    So for file names with encodings falling into this issue it won't work.
+
+
+Install
 =======
+
 
 - Directly from PyPi:
 
