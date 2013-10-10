@@ -11,10 +11,11 @@ scripts = ['remdups']
 if platform_system == "Windows":
     scripts.append('remdups.bat')
 
-requires = ['Pillow>=2.1.0']
+requires = []
 
 extras = {
     'develop': [
+        'Pillow>=2.1.0',
         'pytest>=2.4.1',
         'pytest-cov>=1.6'
     ]
