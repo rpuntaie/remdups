@@ -4,7 +4,7 @@ from setuptools import setup
 import platform
 import os, os.path
 
-__version__ = '1.0'
+__version__ = '1.1'
 
 platform_system = platform.system()
 scripts = ['remdups']
@@ -30,7 +30,7 @@ setup(name = 'remdups',
     license = 'MIT',
     author = 'Roland Puntaier',
     author_email = 'roland.puntaier@gmail.com',
-    url = 'https://github.org/rpuntaie/remdups',
+    url = 'https://github.com/rpuntaie/remdups',
     classifiers = [
         'Development Status :: 5 - Production/Stable',
         'Environment :: Console',

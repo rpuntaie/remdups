@@ -9,6 +9,7 @@
 
 # Changes:
 # 2013-10-07: Version 1.0
+# 2013-10-31: Version 1.1 (documentation changes/corrections)
 
 r'''
 Create shell script to remove duplicates, for further inspection.
@@ -45,7 +46,7 @@ import re
 __all__ = ['sources', 'hash_file', 'walkhash',
            'same_tail', 'Hashlist', 'remdups']
 
-__version__ = '1.0' #this is also in setup.py
+__version__ = '1.1' #this is also in setup.py
 __appname__ = "Remove Duplicate Files"
 __author__  = "Roland Puntaier <roland.puntaier@gmail.com>"
 __license__ = "The MIT License (MIT)"
