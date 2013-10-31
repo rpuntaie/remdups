@@ -4,7 +4,7 @@ remdups - remove duplicate files
 ================================
 
 :Author: Roland Puntaier
-:Homepage: https://github.org/rpuntaie/remdups
+:Homepage: https://github.com/rpuntaie/remdups
 :License: See LICENSE file
 
 remdups
