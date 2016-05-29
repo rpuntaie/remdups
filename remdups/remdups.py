@@ -10,6 +10,7 @@
 # Changes:
 # 2013-10-07: Version 1.0
 # 2013-10-31: Version 1.1 (documentation changes/corrections)
+# 2016-05-29: Version 1.2 (fails to install -> fix)
 
 r'''
 Create shell script to remove duplicates, for further inspection.
@@ -18,17 +19,21 @@ Use like this:
 
 1. create file hash list:
 
-     $remdups --hash
+     $remdups --hash > hashes.txt
 
    or
 
-     $find . -not -type d -exec sha256sum {} \;
+     $find . -not -type d -exec sha256sum {} \; >> hashes.txt
 
 2. make a script with remove commands
+
+   $remdups hashes.txt rmfiles.sh
 
 3. inspect the script and go back to 2., if necessary, else 4.
 
 4. execute script
+
+   $./rmfiles.sh
 
 '''
 
@@ -46,7 +51,7 @@ import re
 __all__ = ['sources', 'hash_file', 'walkhash',
            'same_tail', 'Hashlist', 'remdups']
 
-__version__ = '1.1' #this is also in setup.py
+__version__ = '1.2' #this is also in setup.py
 __appname__ = "Remove Duplicate Files"
 __author__  = "Roland Puntaier <roland.puntaier@gmail.com>"
 __license__ = "The MIT License (MIT)"
@@ -312,7 +317,7 @@ def remdups(
             yield '#:#}}}'
 
     if infile:
-        hashlist = Hashlist(re.split(r'\s*', e.strip(), maxsplit=1)
+        hashlist = Hashlist(re.split(r'\s+', e.strip(), maxsplit=1)
                             for e in infile.read(-1).splitlines())
     else:
         hashpaths = walkhash(hashfile=_hash_file, exclude_dirs=exclude_dir)
@@ -419,5 +424,9 @@ def args():
 
     return argdict  # pragma: no cover
 
-if __name__ == '__main__':
+def main():
     remdups(**args())  # pragma: no cover
+
+if __name__ == '__main__':
+    main()
+

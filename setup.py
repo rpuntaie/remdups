@@ -4,12 +4,7 @@ from setuptools import setup
 import platform
 import os, os.path
 
-__version__ = '1.1'
-
-platform_system = platform.system()
-scripts = ['remdups']
-if platform_system == "Windows":
-    scripts.append('remdups.bat')
+__version__ = '1.2'
 
 requires = []
 
@@ -29,6 +24,7 @@ setup(name = 'remdups',
     description = 'remdups - remove duplicate files',
     license = 'MIT',
     author = 'Roland Puntaier',
+    keywords=['Duplicate, File'],
     author_email = 'roland.puntaier@gmail.com',
     url = 'https://github.com/rpuntaie/remdups',
     classifiers = [
@@ -49,10 +45,18 @@ setup(name = 'remdups',
         'Topic :: System :: Systems Administration'
         ],
 
-    scripts = scripts,
     install_requires = requires,
     extras_require = extras,
-    long_description = read('README.rst')
+    long_description = read('README.rst'),
+    packages=['remdups'],
+    include_package_data=False,
+    zip_safe=False,
+    tests_require=[],
+    entry_points={
+         'console_scripts': [
+         'remdups = remdups.remdups:main',
+              ]
+      },
 
     )
 
