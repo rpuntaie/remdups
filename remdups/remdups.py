@@ -11,6 +11,7 @@
 # 2013-10-07: Version 1.0
 # 2013-10-31: Version 1.1 (documentation changes/corrections)
 # 2016-05-29: Version 1.2 (fails to install -> fix)
+# 2018-01-24: Version 1.3 (.remdups_c.sha256,... , options, makefile instead of script)
 
 r'''
 Create shell script to remove duplicates, for further inspection.
@@ -40,6 +41,11 @@ Use like this:
 
    $remdups rmfiles.sh
 
+   If the file ends in .sh, cp is used and the file names are in linux format.
+   This is usable also on Windows with MSYS, MSYS2 and CYGWIN.
+
+   If the file ends in .bat, Windows commands are used.
+
 3. Inspect the script and go back to 2., if necessary.
    Smaller changes to the script can also be done with the editor.
 
@@ -58,8 +64,8 @@ except ImportError:  # pragma: no cover
     from itertools import izip_longest as zip_longest  # pragma: no cover
 import filecmp
 import hashlib
-import re
 from itertools import product
+import re
 
 __all__ = ['sources', 'hash_file', 'walkhash',
            'same_tail', 'Hashlist', 'remdups']
@@ -116,26 +122,6 @@ def hash_file(filename
         except:
             return hash_file(filename, 'content', hasher)
     return _hasher.hexdigest()
-
-
-def walkhash(
-          _hash_file=hash_file
-        , startdir='.'
-        , exclude_dirs=[]
-        ):
-    ''' generator for hashes (hash-path tuples) for directory tree
-    >>> '[(' in str(list(walkhash(exclude_dirs=['__pycache__'])))
-    True
-
-    '''
-    for root, dirs, files in os.walk(startdir):
-        for name in files:
-            path = os.path.join(root, name)
-            yield (_hash_file(path), path)
-        for exclude in exclude_dirs:
-            if exclude in dirs:
-                dirs.remove(exclude)
-
 
 def same_tail(paths):
     '''return common tail of paths if any
@@ -198,6 +184,25 @@ class Hashlist(object):
             _hash = _hash[0]
         return self.hash_paths[_hash]
 
+    def walkhash(self
+            , _hash_file=hash_file
+            , startdir='.'
+            , exclude_dirs=[]
+            ):
+        ''' generator for hashes (hash-path tuples) for directory tree
+        >>> '[(' in str(list(walkhash(exclude_dirs=['__pycache__'])))
+        True
+
+        '''
+        for root, dirs, files in os.walk(startdir):
+            for name in files:
+                path = os.path.join(root, name)
+                if path not in self.path_hash:
+                     yield (_hash_file(path), path)
+            for exclude in exclude_dirs:
+                if exclude in dirs:
+                    dirs.remove(exclude)
+
     def find_dups(self
             , only_same_name = False
             , safe = False
@@ -243,6 +248,19 @@ class Hashlist(object):
             self.with_same_tail = list(safe_cmp(self.with_same_tail))
         return (self.no_same_tail, self.with_same_tail)
 
+def convunix(fn):
+    '''
+    >>> fn=r"U:\w&k(2)\wf g.txt"
+    ... convunix(fn) == "/U/w\&k\(2\)/wf\ g.txt"
+    True
+
+    '''
+    nfn=fn.replace('\\','/').replace(' ',r'\ ').replace('(',r'\(').replace(')',r'\)').replace('&',r'\&')
+    rese=re.search('(\w):',nfn)
+    if rese:
+       nfn = nfn.replace(nfn[:rese.span(0)[1]],rese.expand(r'/\1'))
+    return nfn
+
 def html_files(filename):
     '''check whether filename is a saved html file'''
     res = False
@@ -252,41 +270,9 @@ def html_files(filename):
                or os.path.exists(filename + '.htm'))
     return res
 
-def rmcmd(filepath):
-    '''yield one remove command'''
-    yield remove_command + ' "' + filepath + '"'
-    filename, ext = os.path.splitext(filepath)
-    if '.htm' in ext:
-        htmlfiles = filename + html_files_suffix
-        if os.path.exists(htmlfiles):
-            yield remove_dir_command + ' "' + htmlfiles + '"'
-
-def gen_command(tail_same):
-    '''yield all remove commands'''
-    lenk = lambda x: len(x)
-    equal = lambda x: x
-    tokeep = keepers + [equal]
-    for tail, same in tail_same:
-        yield ''
-        yield '#:#' + tail + '{{{'
-        # take the shortest path in the smallest set
-        keep = sorted(filter(equal,
-            [sorted(kp(same), key=lenk) for kp in tokeep]), key=lenk)[0][0]
-        for filename in sorted(same):
-            comment = ''
-            if any([cmnt(filename) for cmnt in comment_outs]):
-                comment = '#c#'
-            elif filename == keep:
-                comment = '#'
-            for command in rmcmd(filename):
-                yield comment + command
-        yield '#:#}}}'
-
-relocate_methods = 'cp mv cpmdate mvmdate'
+relocates = 'cp mv cpmdate mvmdate'
 def remdups(
       scriptfile = None
-    , remove_command = 'rm -f'
-    , remove_dir_command = 'rm -rf'
     , only_same_name = False
     , safe = False
     , keep_in = []
@@ -297,10 +283,32 @@ def remdups(
     , exclude_dir = []
     , where_name = None
     , where_file = None
-    , unix_path = False
     , relocate = 'copysort'
     ):
     '''makes the program's functionality available to from within python'''
+    win32 = sys.platform=='win32'
+    s = [ scripfile.name.endswith('.bat'),
+          scripfile.name.endswith('.sh')
+          ]
+    batch,shscript = range(len(s))
+    scrpt = s.index(True)
+    flnm = [
+          lambda fn:  '"' + fn + '"'
+          lambda fn: win32 and fn or convunix(fn)
+          ]
+    rm = [
+          'del /F',
+          'rm -f'
+          ]
+    rmdir = [
+          'rmdir /S',
+          'rm -rf'
+          ]
+    cmt = [
+          "REM "
+          "#"
+          ]
+    cms = cmt[scrpt]
 
     hashfilename = '.remdups_c.sha265'
     hashfilenames = ['.remdups_'+m+'.'+h for m,h in product('c b d e n'.split(),'sha512 sha384 sha256 sha224 sha1 md5'.split())]
@@ -325,12 +333,42 @@ def remdups(
         keepers.append(lambda values: filter(
             lambda x, k=keepout: k not in x, values))
 
+    def rmcmd(filepath):
+        '''yield one remove command'''
+        flnms = flnm[scrpt]
+        yield rm[scrpt] + ' ' + flnms(filepath)
+        filename, ext = os.path.splitext(filepath)
+        if '.htm' in ext:
+            htmlfiles = filename + html_files_suffix
+            if os.path.exists(htmlfiles):
+                yield rmdir[scrpt] + ' '+ flnms(htmlfiles)
+
+    def gen_command(tail_same):
+        '''yield all remove commands'''
+        lenk = lambda x: len(x)
+        equal = lambda x: x
+        tokeep = keepers + [equal]
+        for tail, same in tail_same:
+            yield ''
+            yield cms+':#' + tail + '{{{'
+            # take the shortest path in the smallest set
+            keep = sorted(filter(equal,
+                [sorted(kp(same), key=lenk) for kp in tokeep]), key=lenk)[0][0]
+            for filename in sorted(same):
+                comment = ''
+                if any([cmnt(filename) for cmnt in comment_outs]):
+                    comment = cms+'c#'
+                elif filename == keep:
+                    comment = cms
+                for command in rmcmd(filename):
+                    yield comment + command
+            yield cms+':#}}}'
+
     with open(hashfilename,'a+',encoding='utf-8') as hashfile:
         hashlist = Hashlist(re.split(r'\s+', e.strip(), maxsplit=1)
                            for e in hashfile.readlines())
 
-    hashpaths = walkhash(_hash_file=_hash_file, exclude_dirs=exclude_dir)
-    hashlist.update(hashpaths)
+    hashlist.walkhash(_hash_file=_hash_file, exclude_dirs=exclude_dir)
 
     if not hash_only:
         grps_no, grps_with = hashlist.find_dups(
@@ -348,19 +386,19 @@ def remdups(
         else:  # script
             output = []
             if grps_no or grps_with:
-                output.append('### vim: set fdm=marker')
+                output.append(cms+'## vim: set fdm=marker')
             if grps_no:
                 output.append('')
-                output.append('### No Same Tail {{{')
+                output.append(cms+'## No Same Tail {{{')
                 for line in gen_command(grps_no):
                     output.append(line)
-                output.append('### }}}')
+                output.append(cms+'## }}}')
             if grps_with:
                 output.append('')
-                output.append('### With Same Tail {{{')
+                output.append(cms+'## With Same Tail {{{')
                 for line in gen_command(grps_with):
                     output.append(line)
-                output.append('### }}}')
+                output.append(cms+'## }}}')
 
         if scriptfile != None:
             script = '\n'.join(output)
@@ -386,12 +424,6 @@ def args():
         '-s', '--safe', action='store_true',
         help='Do not trust filename+hash, '
              'but do an additional bytewise compare.')
-    parser.add_argument(#remove_command
-        '-r', '--remove-command', action='store', default='rm -f',
-        help='The shell command to remove a file.')
-    parser.add_argument(#remove_dir_command
-        '-d', '--remove-dir-command', action='store', default='rm -rf',
-        help='The shell command to remove a directory.')
     parser.add_argument(#html_files_suffix
         '-x', '--html-files-suffix', action='store', default='_files',
         help='When saving an html '
@@ -410,12 +442,9 @@ def args():
     parser.add_argument(#exclude_dir
         '-e', '--exclude-dir', action='append', default=[],
         help='Exclude such dir names when walking the directory tree.')
-    parser.add_argument(#unix_path TODO
-        '-u', '--unix-path', action='store_true', 
-        help='Convert paths to unix format on Windows to execute the script on MSYS, MSYS2 or CYGWIN.')
     parser.add_argument(#relocate TODO
         '-t', '--relocate', action='store', 
-        help='Instead of remove, do move or copy to new root those that would not be removed. Provide either of:'+relocate_methods)
+        help='Instead of remove, do move or copy to new root those that would not be removed. Provide either of:'+relocates)
     parser.add_mutually_exclusive_group()
     parser.add_argument(#where_name
         '-w', '--where-name', action='store',
