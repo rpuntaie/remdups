@@ -17,17 +17,17 @@ Create shell script to remove duplicates, for further inspection.
 
 Use like this:
 
-1. create file hash list:
+1. create file hash list .remdups:
 
-     $remdups --hash > hashes.txt
+     $remdups --hash
 
    or
 
-     $find . -not -type d -exec sha256sum {} \; >> hashes.txt
+     $find . -not -type d -exec sha256sum {} \; >> .remdups
 
 2. make a script with remove commands
 
-   $remdups hashes.txt rmfiles.sh
+   $remdups rmfiles.sh
 
 3. inspect the script and go back to 2., if necessary, else 4.
 
@@ -108,7 +108,7 @@ def hash_file(filename
 
 
 def walkhash(
-          hashfile=hash_file
+          _hash_file=hash_file
         , startdir='.'
         , exclude_dirs=[]
         ):
@@ -120,7 +120,7 @@ def walkhash(
     for root, dirs, files in os.walk(startdir):
         for name in files:
             path = os.path.join(root, name)
-            yield (hashfile(path), path)
+            yield (_hash_file(path), path)
         for exclude in exclude_dirs:
             if exclude in dirs:
                 dirs.remove(exclude)
@@ -148,8 +148,7 @@ def same_tail(paths):
     return savejoin(*reversed(_sametail))
 
 
-make_hash_path = lambda h, p: '{}  {}'.format(h, p)
-
+make_hash_path = lambda h, p: '{}\t{}'.format(h, p)
 
 class Hashlist(object):
 
@@ -233,9 +232,48 @@ class Hashlist(object):
             self.with_same_tail = list(safe_cmp(self.with_same_tail))
         return (self.no_same_tail, self.with_same_tail)
 
+def html_files(filename):
+    '''check whether filename is a saved html file'''
+    res = False
+    if html_files_suffix + os.sep in filename:
+        filename = filename.split(html_files_suffix)[0]
+        res = (os.path.exists(filename + '.html')
+               or os.path.exists(filename + '.htm'))
+    return res
+
+def rmcmd(filepath):
+    '''yield one remove command'''
+    yield remove_command + ' "' + filepath + '"'
+    filename, ext = os.path.splitext(filepath)
+    if '.htm' in ext:
+        htmlfiles = filename + html_files_suffix
+        if os.path.exists(htmlfiles):
+            yield remove_dir_command + ' "' + htmlfiles + '"'
+
+def gen_rem(tail_same):
+    '''yield all remove commands'''
+    lenk = lambda x: len(x)
+    equal = lambda x: x
+    tokeep = keepers + [equal]
+    for tail, same in tail_same:
+        yield ''
+        yield '#:#' + tail + '{{{'
+        # take the shortest path in the smallest set
+        keep = sorted(filter(equal,
+            [sorted(kp(same), key=lenk) for kp in tokeep]), key=lenk)[0][0]
+        for filename in sorted(same):
+            comment = ''
+            if any([cmnt(filename) for cmnt in comment_outs]):
+                comment = '#c#'
+            elif filename == keep:
+                comment = '#'
+            for command in rmcmd(filename):
+                yield comment + command
+        yield '#:#}}}'
+
 def remdups(
       infile = None
-    , outfile = None
+    , scriptfile = None
     , remove_command = 'rm -f'
     , remove_dir_command = 'rm -rf'
     , only_same_name = False
@@ -256,24 +294,6 @@ def remdups(
     hasher = eval('hashlib.' + method)
     _hash_file = lambda fn: hash_file(fn, source, hasher)
 
-    if hashonly and infile:
-        _hashpath = make_hash_path(_hash_file(infile.name), infile.name)
-        if outfile != None:
-            outfile.writelines(_hashpath)
-            outfile.write('\n')
-            return outfile
-        else:
-            return _hashpath
-
-    def html_files(filename):
-        '''check whether filename is a saved html file'''
-        res = False
-        if html_files_suffix + os.sep in filename:
-            filename = filename.split(html_files_suffix)[0]
-            res = (os.path.exists(filename + '.html')
-                   or os.path.exists(filename + '.htm'))
-        return res
-
     comment_outs = [html_files]
     for cmnt in comment_out:
         comment_outs.append(lambda x, c=cmnt: c in x)
@@ -286,41 +306,20 @@ def remdups(
         keepers.append(lambda values: filter(
             lambda x, k=keepout: k not in x, values))
 
-    def rmcmd(filepath):
-        '''yield one remove command'''
-        yield remove_command + ' "' + filepath + '"'
-        filename, ext = os.path.splitext(filepath)
-        if '.htm' in ext:
-            htmlfiles = filename + html_files_suffix
-            if os.path.exists(htmlfiles):
-                yield remove_dir_command + ' "' + htmlfiles + '"'
-
-    def gen_rem(tail_same):
-        '''yield all remove commands'''
-        lenk = lambda x: len(x)
-        equal = lambda x: x
-        tokeep = keepers + [equal]
-        for tail, same in tail_same:
-            yield ''
-            yield '#:#' + tail + '{{{'
-            # take the shortest path in the smallest set
-            keep = sorted(filter(equal,
-                [sorted(kp(same), key=lenk) for kp in tokeep]), key=lenk)[0][0]
-            for filename in sorted(same):
-                comment = ''
-                if any([cmnt(filename) for cmnt in comment_outs]):
-                    comment = '#c#'
-                elif filename == keep:
-                    comment = '#'
-                for command in rmcmd(filename):
-                    yield comment + command
-            yield '#:#}}}'
+    with open('.remdups','a+',encoding='utf-8') as hashfile:
+        hashlist = Hashlist(re.split(r'\s+', e.strip(), maxsplit=1)
+                           for e in hashfile.readlines())
+        if hashonly:
+            _hashpath = make_hash_path(_hash_file(infile.name), infile.name)
+            hashfile.writelines(_hashpath)
+            hashfile.write('\n')
+            return _hashpath
 
     if infile:
         hashlist = Hashlist(re.split(r'\s+', e.strip(), maxsplit=1)
                             for e in infile.read(-1).splitlines())
     else:
-        hashpaths = walkhash(hashfile=_hash_file, exclude_dirs=exclude_dir)
+        hashpaths = walkhash(_hash_file=_hash_file, exclude_dirs=exclude_dir)
         hashlist = Hashlist(hashpaths)
 
     if hashonly:
@@ -355,10 +354,13 @@ def remdups(
                     rems.append(line)
                 rems.append('### }}}')
 
-    if outfile != None:
+    if scriptfile != None:
         script = '\n'.join(rems)
-        outfile.write(script)
-        return outfile
+        scriptfile.write(script)
+        if hashonly:
+            with open('.remdups','w',encoding='utf-8') as f:
+                f.write('\n'.join(rems))
+        return scriptfile
     else:
         return rems
 
@@ -369,9 +371,8 @@ def args():
 
     parser = argparse.ArgumentParser(description = __doc__,
             formatter_class = argparse.ArgumentDefaultsHelpFormatter)
-    # script creation
-    parser.add_argument('infile', nargs='?', type=argparse.FileType('r'))
-    parser.add_argument('outfile', nargs='?', type=argparse.FileType('w'),
+
+    parser.add_argument('scriptfile', nargs='?', type=argparse.FileType('w',encoding='utf-8'),
                         default=sys.stdout)
     parser.add_argument('-n', '--only-same-name', action='store_true',
         help='Only consider files with same name')
