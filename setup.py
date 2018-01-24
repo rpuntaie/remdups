@@ -4,7 +4,7 @@ from setuptools import setup
 import platform
 import os, os.path
 
-__version__ = '1.2'
+__version__ = '1.3'
 
 requires = []
 

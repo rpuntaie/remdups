@@ -55,7 +55,7 @@ def setup_module(module):
             with open(os.path.join(path[:-5] + '_files', 'tst'), 'w') as _file:
                 _file.write('a html data file')
     subprocess.call(
-        r'find . -not -type d -exec sha256sum {} \;>hashes.txt', shell=True)
+        r'find . -not -type d -exec sha256sum {} \;>.remdups_c.sha256', shell=True)
 
 
 def test_hash_file():
@@ -105,9 +105,7 @@ def test_remdups():
     assert set(wherefile) == set(['./c/a', './u/v/a'])
 
     outfile = StringIO()
-    with open('hashes.txt', 'r') as _file:
-        remdups(infile=_file, outfile=outfile, keep_in=[
-                'a'], keep_out=['y'], comment_out=['u'])
+    remdups(outfile=outfile, keep_in=['a'], keep_out=['y'], comment_out=['u'])
     outfile.seek(0)
     res = [ln.strip()
            for ln in outfile.readlines() if ln.strip() and '####' not in ln]
@@ -136,6 +134,6 @@ def teardown_module(module):
         except:
             pass
 
-    os.remove('hashes.txt')
+    os.remove('.remdups_c.sha256')
     os.chdir(ochd)
     os.rmdir(tmproot)

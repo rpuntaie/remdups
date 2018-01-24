@@ -17,19 +17,31 @@ Create shell script to remove duplicates, for further inspection.
 
 Use like this:
 
-1. create file hash list .remdups:
+1. Create file hash list .remdups_c.sha256:
 
      $remdups --hash
 
-   or
+   New files are added to .remdups. To rehash all files, first remove .remdups*.
+   You can also do:
 
-     $find . -not -type d -exec sha256sum {} \; >> .remdups
+     $find . -not -type d -exec sha256sum {} \; > .remdups_c.sha256
 
-2. make a script with remove commands
+   The first of .remdups_{c,b,d,e,n}.{sha512, sha384, sha256, sha224, sha1, md5} is used.
+   Do 
+
+      $cat > .remdups_c.sha512
+
+   to determine the hash method in advance.
+
+   {'c': 'content', 'b': 'block', 'd': 'date', 'e': 'exif', 'n': 'name'}
+
+2. Make a script with (re)move commands.
+   It can be repeated with different options until the script is good.
 
    $remdups rmfiles.sh
 
-3. inspect the script and go back to 2., if necessary, else 4.
+3. Inspect the script and go back to 2., if necessary.
+   Smaller changes to the script can also be done with the editor.
 
 4. execute script
 
@@ -47,31 +59,30 @@ except ImportError:  # pragma: no cover
 import filecmp
 import hashlib
 import re
+from itertools import product
 
 __all__ = ['sources', 'hash_file', 'walkhash',
            'same_tail', 'Hashlist', 'remdups']
 
-__version__ = '1.2' #this is also in setup.py
+__version__ = '1.3' #this is also in setup.py
 __appname__ = "Remove Duplicate Files"
 __author__  = "Roland Puntaier <roland.puntaier@gmail.com>"
 __license__ = "The MIT License (MIT)"
 
-PY3 = sys.version_info[0] == 3
+sources = {
+   'block': 'Create file hash using a starting block.',
+   'content': 'Create file hash using whole file content.',
+   'date': 'Create file hash using file name and modification date.',
+   'exif': 'Create file hash using image EXIF data',
+   'name': 'Create file hash using file name.',
+   }
 
-sources = {'name': 'Create file hash using only file name.',
-           'namedate': 'Create file hash using only '
-                       'file name and modification date.',
-           'exif': 'Create file hash using only image EXIF data, '
-                   'thus recognizing equality for different compressions',
-           'content': 'Create file hash using whole file content.',
-           'block': 'Create file hash using a starting block.'}
+_fnencoding = sys.getfilesystemencoding()
 
-encoding = sys.getfilesystemencoding()
-
-def encode(code):
+def fnencode(code):
     'return bytes for python 2 and 3'
-    if PY3:
-        return bytes(code, encoding) # pragma: no cover
+    if sys.version_info[0] == 3:
+        return bytes(code, _fnencoding) # pragma: no cover
     else:  # pragma: no cover
         return code  # pragma: no cover
 
@@ -83,25 +94,25 @@ def hash_file(filename
     '''
     blocksize = filecmp.BUFSIZE
     _hasher = hasher()
-    if source in {'content', 'block'}:
+    if source in {'c', 'content', 'b', 'block'}:
         with open(filename, 'rb') as _file:
             buf = _file.read(blocksize)
             while len(buf) > 0:
                 _hasher.update(buf)
-                if source == 'block':
+                if source in {'b', 'block'}:
                     break
                 buf = _file.read(blocksize)
-    elif source == 'name':
-        _hasher.update(encode(os.path.split(filename)[1]))
-    elif source == 'namedate':
-        _hasher.update(encode(os.path.split(filename)[1] +
+    elif source in {'n', 'name'}:
+        _hasher.update(fnencode(os.path.split(filename)[1]))
+    elif source in {'d', 'date'}:
+        _hasher.update(fnencode(os.path.split(filename)[1] +
             str(os.path.getmtime(filename))))
-    elif source == 'exif':
+    elif source in {'e','exif'}:
         try:
             from PIL import Image
             img = Image.open(filename)
             exif_data = img._getexif()
-            _hasher.update(encode(os.path.split(filename)[1] + str(exif_data)))
+            _hasher.update(fnencode(os.path.split(filename)[1] + str(exif_data)))
         except:
             return hash_file(filename, 'content', hasher)
     return _hasher.hexdigest()
@@ -250,7 +261,7 @@ def rmcmd(filepath):
         if os.path.exists(htmlfiles):
             yield remove_dir_command + ' "' + htmlfiles + '"'
 
-def gen_rem(tail_same):
+def gen_command(tail_same):
     '''yield all remove commands'''
     lenk = lambda x: len(x)
     equal = lambda x: x
@@ -271,9 +282,9 @@ def gen_rem(tail_same):
                 yield comment + command
         yield '#:#}}}'
 
+relocate_methods = 'cp mv cpmdate mvmdate'
 def remdups(
-      infile = None
-    , scriptfile = None
+      scriptfile = None
     , remove_command = 'rm -f'
     , remove_dir_command = 'rm -rf'
     , only_same_name = False
@@ -282,14 +293,22 @@ def remdups(
     , keep_out = []
     , comment_out = []
     , html_files_suffix = '_files'
-    , method = 'sha256'
-    , source = 'content'
-    , hashonly = False
+    , hash_only = False
     , exclude_dir = []
     , where_name = None
     , where_file = None
+    , unix_path = False
+    , relocate = 'copysort'
     ):
     '''makes the program's functionality available to from within python'''
+
+    hashfilename = '.remdups_c.sha265'
+    hashfilenames = ['.remdups_'+m+'.'+h for m,h in product('c b d e n'.split(),'sha512 sha384 sha256 sha224 sha1 md5'.split())]
+    for h in hashfilenames:
+       if os.path.exists(hashfilename):
+          hashfilename = h
+          break
+    _,__,source,method = re.split('_|\.',hashfilename)
 
     hasher = eval('hashlib.' + method)
     _hash_file = lambda fn: hash_file(fn, source, hasher)
@@ -306,63 +325,48 @@ def remdups(
         keepers.append(lambda values: filter(
             lambda x, k=keepout: k not in x, values))
 
-    with open('.remdups','a+',encoding='utf-8') as hashfile:
+    with open(hashfilename,'a+',encoding='utf-8') as hashfile:
         hashlist = Hashlist(re.split(r'\s+', e.strip(), maxsplit=1)
                            for e in hashfile.readlines())
-        if hashonly:
-            _hashpath = make_hash_path(_hash_file(infile.name), infile.name)
-            hashfile.writelines(_hashpath)
-            hashfile.write('\n')
-            return _hashpath
 
-    if infile:
-        hashlist = Hashlist(re.split(r'\s+', e.strip(), maxsplit=1)
-                            for e in infile.read(-1).splitlines())
-    else:
-        hashpaths = walkhash(_hash_file=_hash_file, exclude_dirs=exclude_dir)
-        hashlist = Hashlist(hashpaths)
+    hashpaths = walkhash(_hash_file=_hash_file, exclude_dirs=exclude_dir)
+    hashlist.update(hashpaths)
 
-    if hashonly:
-        rems = hashlist.hashpaths()
-    else:
+    if not hash_only:
         grps_no, grps_with = hashlist.find_dups(
             only_same_name=only_same_name, safe=safe)
 
         if where_name:
-            rems = []
+            output = []
             wheregroups = hashlist.where_name(where_name)
             for wheregroup in wheregroups:
                 for where in wheregroup:
-                    rems.append(where)
-                rems.append('')
+                    output.append(where)
+                output.append('')
         elif where_file:
-            rems = hashlist.where_file(where_file)
+            output = hashlist.where_file(where_file)
         else:  # script
-            rems = []
+            output = []
             if grps_no or grps_with:
-                rems.append('### vim: set fdm=marker')
+                output.append('### vim: set fdm=marker')
             if grps_no:
-                rems.append('')
-                rems.append('### No Same Tail {{{')
-                for line in gen_rem(grps_no):
-                    rems.append(line)
-                rems.append('### }}}')
+                output.append('')
+                output.append('### No Same Tail {{{')
+                for line in gen_command(grps_no):
+                    output.append(line)
+                output.append('### }}}')
             if grps_with:
-                rems.append('')
-                rems.append('### With Same Tail {{{')
-                for line in gen_rem(grps_with):
-                    rems.append(line)
-                rems.append('### }}}')
+                output.append('')
+                output.append('### With Same Tail {{{')
+                for line in gen_command(grps_with):
+                    output.append(line)
+                output.append('### }}}')
 
-    if scriptfile != None:
-        script = '\n'.join(rems)
-        scriptfile.write(script)
-        if hashonly:
-            with open('.remdups','w',encoding='utf-8') as f:
-                f.write('\n'.join(rems))
-        return scriptfile
-    else:
-        return rems
+        if scriptfile != None:
+            script = '\n'.join(output)
+            scriptfile.write(script)
+
+        return output
 
 
 def args():
@@ -372,56 +376,59 @@ def args():
     parser = argparse.ArgumentParser(description = __doc__,
             formatter_class = argparse.ArgumentDefaultsHelpFormatter)
 
+    #script
     parser.add_argument('scriptfile', nargs='?', type=argparse.FileType('w',encoding='utf-8'),
                         default=sys.stdout)
-    parser.add_argument('-n', '--only-same-name', action='store_true',
+    parser.add_argument(#only_same_name
+        '-n', '--only-same-name', action='store_true',
         help='Only consider files with same name')
-    parser.add_argument('-s', '--safe', action='store_true',
+    parser.add_argument(#safe
+        '-s', '--safe', action='store_true',
         help='Do not trust filename+hash, '
              'but do an additional bytewise compare.')
-    parser.add_argument(
+    parser.add_argument(#remove_command
         '-r', '--remove-command', action='store', default='rm -f',
         help='The shell command to remove a file.')
-    parser.add_argument(
+    parser.add_argument(#remove_dir_command
         '-d', '--remove-dir-command', action='store', default='rm -rf',
         help='The shell command to remove a directory.')
-    parser.add_argument(
+    parser.add_argument(#html_files_suffix
         '-x', '--html-files-suffix', action='store', default='_files',
         help='When saving an html '
         'the files get into a subfolder formed with a suffix to the html file.'
         'User = for suffixes starting with a hyphen, like: -x="-Dateien".')
-    parser.add_argument('-i', '--keep-in', action='append', default=[],
+    parser.add_argument(#keep_in
+        '-i', '--keep-in', action='append', default=[],
         help='Add substring to make other files of the duplicates be removed.')
-    parser.add_argument('-o', '--keep-out', action='append', default=[],
+    parser.add_argument(#keep_out
+        '-o', '--keep-out', action='append', default=[],
         help='Add substring to make this files of the duplicates be removed.')
-    parser.add_argument('-c', '--comment-out', action='append', default=[],
+    parser.add_argument(#comment_out
+        '-c', '--comment-out', action='append', default=[],
         help='Add substring to make the remove command '
-        'for the file containing it be commented out.')
-    parser.add_argument('-e', '--exclude-dir', action='append', default=[],
+        'for the file containing it, be commented out.')
+    parser.add_argument(#exclude_dir
+        '-e', '--exclude-dir', action='append', default=[],
         help='Exclude such dir names when walking the directory tree.')
-    parser.add_argument('-m', '--method', action='store', default='sha256',
-        help='Any of md5, sha1, sha224, sha256, sha384, sha512.')
-    # hash creation
-    parser.add_argument('--hash', dest='hashonly', action='store_true',
-        help='Hash only. With no input file it produces file hashes '
-        'of the current directory tree. With input file it produces '
-        'a hash of that file and can replace a system tool like sha256sum.')
-    group = parser.add_mutually_exclusive_group()
-    for k, sourcetype in sources.items():
-        group.add_argument('--' + k, dest='source', 
-                default = True if k=='content' else False,
-                action='store_const', const=k, help=sourcetype)
-
-    # query
-    parser.add_argument('-w', '--where-name', action='store',
+    parser.add_argument(#unix_path TODO
+        '-u', '--unix-path', action='store_true', 
+        help='Convert paths to unix format on Windows to execute the script on MSYS, MSYS2 or CYGWIN.')
+    parser.add_argument(#relocate TODO
+        '-t', '--relocate', action='store', 
+        help='Instead of remove, do move or copy to new root those that would not be removed. Provide either of:'+relocate_methods)
+    parser.add_mutually_exclusive_group()
+    parser.add_argument(#where_name
+        '-w', '--where-name', action='store',
         help='All places for this name, grouped by same hash.')
-    parser.add_argument('-W', '--where-file', action='store',
+    parser.add_argument(#where_file
+        '-W', '--where-file', action='store',
         help='All places for the hash of this file.')
+    parser.add_mutually_exclusive_group()
+    parser.add_argument(#hash_only
+        '-h','--hash-only', action='store_true',
+        help='After updating .remdups_x.y no script is generated.')
 
     argdict = vars(parser.parse_args())  # exception when using py.test
-
-    if not argdict['source']:  # pragma no cover
-        argdict['source'] = 'content'  # pragma: no cover
 
     return argdict  # pragma: no cover
 
