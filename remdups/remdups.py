@@ -63,6 +63,7 @@ Use like this:
 import sys
 import os
 import os.path
+import argparse
 try:
    from itertools import zip_longest  # pragma: no cover
 except ImportError:  # pragma: no cover
@@ -257,42 +258,46 @@ class RemDups(object):
 
       win32 = sys.platform=='win32'
       s = [ 
-            args.scriptfile.name.endswith('.bat'),
-            args.scriptfile.name.endswith('.sh'),
-            args.scriptfile.name.endswith('dodo.py')
+            args.script.name.endswith('.sh'),
+            args.script.name.endswith('.bat'),
+            args.script.name.endswith('dodo.py')
             ]
+      if args.script.name == 'stdout':
+         s[win32] = 1
+
       batch,shscript,dodo = range(len(s))
       self.scrpt = s.index(True)
       self.flnm = [
-            lambda fn:  '"' + fn + '"',
             lambda fn: win32 and _convunix(fn) or fn,
+            lambda fn:  '"' + fn + '"',
             lambda fn:  '"' + fn + '"',
             ]
       self._rm = [
-            'del /F',
             'rm -f',
+            'del /F',
             'remove'
             ]
       self._rmdir = [
-            'rmdir /S',
             'rm -rf',
+            'rmdir /S',
             'rmtree'
             ]
       self._cp = [
-            'copy',
             'cp',
+            'copy',
             'copy2'
             ]
       self._mv = [
-            'move',
             'mv',
+            'move',
             'move'
             ]
       self._cmt = [
-            "REM ",
             "#",
+            "REM ",
             "#"
             ]
+
       cms = _cmt[self.scrpt]
 
       self.comment_outs = [_html_files]
@@ -399,8 +404,8 @@ class RemDups(object):
             output.append(line)
          output.append(cms+'## }}}')
 
-      if self.args.scriptfile != None:
-         self.args.scriptfile.write('\n'.join([o for o in _genout(output)]))
+      if self.args.script != None:
+         self.args.script.write('\n'.join([o for o in _genout(output)]))
 
       return output
 
@@ -413,8 +418,8 @@ class RemDups(object):
    def dupsoftail(self):
       "duplicates groups having the provided tail"
       output = [paths for t, paths in self.with_same_tail if t.endswith(self.args.tail)]
-      if self.args.scriptfile != None:
-         self.args.scriptfile.write('\n'.join([o for o in _genout(output)]))
+      if self.args.script != None:
+         self.args.script.write('\n'.join([o for o in _genout(output)]))
       return output
    def dupsof(self):
       "duplicates of a provided file name or substring of"
@@ -426,8 +431,8 @@ class RemDups(object):
             raise ValueError('Path does not (uniquely) define a file')
          _hash = _hash[0]
       output = self.hasher.hash_paths[_hash]
-      if self.args.scriptfile != None:
-         self.args.scriptfile.write('\n'.join([o for o in _genout(output)]))
+      if self.args.script != None:
+         self.args.script.write('\n'.join([o for o in _genout(output)]))
       return output
 
 
@@ -458,9 +463,7 @@ def dupsof(args):
       remdups = RemDups(args)
    remdups.dupsof(args)
 
-
-#https://stackoverflow.com/questions/6365601/default-sub-command-or-handling-no-sub-command-with-argparse
-def set_default_subparser(parser, name):
+def set_default_subparser(parser, argv, name):
    subparser_found = False
    for arg in sys.argv[1:]:
       if arg in ['-h', '--help']:  # global help if no subparser
@@ -474,63 +477,71 @@ def set_default_subparser(parser, name):
               subparser_found = True
       if not subparser_found:
          sys.argv.insert(1, name)
+#   for x in parser._subparsers._actions:
+#     if not isinstance(x, argparse._SubParsersAction):
+#        continue
+#     for sp_name in x._name_parser_map.keys():
+#        if sp_name in argv:
+#           subparser_found = True
+#   if not subparser_found:
+#      if argv==sys.argv:
+#         argv.insert(1, name)
+#      else:
+#         argv.insert(0, name)
 
-def parse_args():
-   '''parses the arguments and returns a dictionary of them'''
-   import argparse
-   parser = argparse.ArgumentParser(description = __doc__,
-         formatter_class = argparse.ArgumentDefaultsHelpFormatter)
-   parser.add_argument('scriptfile', nargs='?', type=argparse.FileType('w',encoding='utf-8'),
-         default=sys.stdout)
-   parser.add_argument(#only_same_name
-         '-n', '--only-same-name', action='store_true',
-         help='Only consider files with same name')
-   parser.add_argument(#safe
-         '-s', '--safe', action='store_true',
-         help='Do not trust filename+hash, '
-         'but do an additional bytewise compare.')
-   parser.add_argument(#html_files_suffix
-         '-x', '--html-files-suffix', action='store', default='_files',
-         help='When saving an html '
-         'the files get into a subfolder formed with a suffix to the html file.'
-         'User = for suffixes starting with a hyphen, like: -x="-Dateien".')
-   parser.add_argument(#keep_in
-         '-i', '--keep-in', action='append', default=[],
-         help='Add substring to make other files of the duplicates be removed.')
-   parser.add_argument(#keep_out
-         '-o', '--keep-out', action='append', default=[],
-         help='Add substring to make this files of the duplicates be removed.')
-   parser.add_argument(#comment_out
-         '-c', '--comment-out', action='append', default=[],
-         help='Add substring to make the remove command '
-         'for the file containing it, be commented out.')
-   parser.add_argument(#exclude_dir
-         '-e', '--exclude-dir', action='append', default=[],
-         help='Exclude such dir names when walking the directory tree.')
-   parser.add_argument(#hash_only
-         '-y','--hash-only', action='store_true',
-         help='After updating .remdups_x.y no script is generated.')
-   subparsers = parser.add_subparsers(help="Available commands:")
-   crm = subparsers.add_parser('rm',dest='cmd',help=rm.__doc__)
+def parse_args(argv):
+   """parses the arguments and returns a dictionary of them
+   """
+   parser = argparse.ArgumentParser(prog='remdups',description = __doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+   subparsers = parser.add_subparsers(help='rm is default commnad. "remdups <command> --help" for help on the command. ',dest='cmd')
+   crm = subparsers.add_parser('rm',help=rm.__doc__)
    crm.set_defaults(func=rm)
-   cmv = subparsers.add_parser('mv',dest='cmd',help=mv.__doc__)
-   cdupsof.add_argument('fromdir',action='store')
-   sort,sortkw = ['--sort'],dict(action='store',default='%y%m|%d%H%M%S',help="| separates dir and name. Else see https://docs.python.org/3/library/datetime.html#strftime-strptime-behavior")
-   cmv.add_argument(*sort,**sortkw)
+   cmv = subparsers.add_parser('mv',help=mv.__doc__)
    cmv.set_defaults(func=mv)
-   ccp = subparsers.add_parser('cp',dest='cmd',help=cp.__doc__)
-   cdupsof.add_argument('fromdir',action='store')
-   ccp.add_argument(*sort,**sortkw)
+   ccp = subparsers.add_parser('cp',help=cp.__doc__)
    ccp.set_defaults(func=cp)
-   cdupsof = subparsers.add_parser('dupsof',dest='cmd',help=dupsof.__doc__)
+   cdupsof = subparsers.add_parser('dupsof',help=dupsof.__doc__)
    cdupsof.add_argument('substr',action='store')
    cdupsof.set_defaults(func=dupsof)
-   cdupsoftail = subparsers.add_parser('dupsoftail',dest='cmd',help=dupsoftail.__doc__)
+   cdupsoftail = subparsers.add_parser('dupsoftail',help=dupsoftail.__doc__)
    cdupsoftail.add_argument('tail',action='store')
    cdupsoftail.set_defaults(func=dupsoftail)
-   set_default_subparser(parser,'rm')
-   parser.parse_args()  # exception when using py.test
+   for p in [cmv,ccp]:
+      p.add_argument('--sort',action='store',default='%y%m|%d%H%M%S',help="| separates dir and name. Else see https://docs.python.org/3/library/datetime.html#strftime-strptime-behavior")
+      p.add_argument('fromdir',action='store')
+   for p in [crm,cmv,ccp,cdupsof,cdupsoftail]:
+      p.add_argument('-s','--script', action="store", type=argparse.FileType('w',encoding='utf-8'), required=True,
+            help='Write to specified script. Required, because name of script determines format.')
+      p.add_argument(#only_same_name
+            '-n', '--only-same-name', action='store_true',
+            help='Only consider files with same name.')
+      p.add_argument(#safe
+            '-f', '--safe', action='store_true',
+            help='Do not trust filename+hash, '
+            'but do an additional bytewise compare.')
+      p.add_argument(#html_files_suffix
+            '-x', '--html-files-suffix', action='store', default='_files',
+            help='When saving an html '
+            'the files get into a subfolder formed with a suffix to the html file.'
+            'User = for suffixes starting with a hyphen, like: -x="-Dateien".')
+      p.add_argument(#keep_in
+            '-i', '--keep-in', action='append', default=[],
+            help='Add substring to make other files of the duplicates be removed.')
+      p.add_argument(#keep_out
+            '-o', '--keep-out', action='append', default=[],
+            help='Add substring to make this files of the duplicates be removed.')
+      p.add_argument(#comment_out
+            '-c', '--comment-out', action='append', default=[],
+            help='Add substring to make the remove command '
+            'for the file containing it, be commented out.')
+      p.add_argument(#exclude_dir
+            '-e', '--exclude-dir', action='append', default=[],
+            help='Exclude such dir names when walking the directory tree.')
+      p.add_argument(#hash_only
+            '-y','--hash-only', action='store_true',
+            help='After updating .remdups_x.y no script is generated.')
+   set_default_subparser(parser,argv,'rm')
+   return parser.parse_args(argv[1:])
 
 if __name__ == '__main__':
-   parse_args()
-
+   parse_args(sys.argv)
