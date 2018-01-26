@@ -79,14 +79,6 @@ __appname__ = "Remove Duplicate Files"
 __author__  = "Roland Puntaier <roland.puntaier@gmail.com>"
 __license__ = "The MIT License (MIT)"
 
-sources = {
-      'block': 'Create file hash using a starting block.',
-      'content': 'Create file hash using whole file content.',
-      'date': 'Create file hash using file name and modification date.',
-      'exif': 'Create file hash using image EXIF data',
-      'name': 'Create file hash using file name.',
-      }
-
 _fnencoding = sys.getfilesystemencoding()
 
 def _fnencode(code):
@@ -101,22 +93,25 @@ def _encode(s):
    else:  # pragma: no cover
       return s  # pragma: no cover
 
+remdupsfile = lambda a,h: '.remdups_'+a+'.'+h
 class Hasher:
    def __init__(self
          ,startdir='.'
-         ,excludedirs=[]
+         ,exclude_dir=[]
          ):
       self.hashfiles = []
-      hashfilenames = ['.remdups_'+m+'.'+h for m,h in product('c b d e n'.split(),'sha512 sha384 sha256 sha224 sha1 md5'.split())]
+      hashfilenames = [remdupsfile(a,h) for a,h in product('c b d e n'.split(),'sha512 sha384 sha256 sha224 sha1 md5'.split())]
       for h in hashfilenames:
          if os.path.exists(h):
             self.hashfiles.append(h)
       if not self.hashfiles:
-         self.hashfiles.append('.remdups_c.sha265')
-      #hashfiles=['.remdups_c.sha256','.remdups_e.md5']
+         defaulthashfile = '.remdups_c.sha256'
+         with open(defaulthashfile,'w'): pass
+         self.hashfiles.append(defaulthashfile)
+      #self.hashfiles
       self.hashes2write = defaultdict(list)
       self.startdir=startdir
-      self.excludedirs = excludedirs
+      self.exclude_dir = exclude_dir
       self.path_hash = defaultdict(str)
       self.loadhashes()
       self.walkhashes()
@@ -124,9 +119,10 @@ class Hasher:
       self.makehashpaths()
    def updatehashfiles(self):
       for i,hfn in enumerate(self.hashfiles):
-         if len(hashes2write[i]) > 0:
+         if len(self.hashes2write[i]) > 0:
             with open(hfn,'a',encoding='utf-8') as hashfile:
-               hashfile.writelines(['{}\t{}\n'.format(h, p) for h,p in hashes2write[i]])
+               hashfile.writelines(['{}\t{}\n'.format(h, p) for h,p in self.hashes2write[i]])
+      self.hashes2write = defaultdict(list)
    def makehashpaths(self):
       self.hash_paths = defaultdict(list)
       for apth, ahsh in self.path_hash.items():
@@ -137,22 +133,20 @@ class Hasher:
             for e in hashfile.readlines():
                p,h = re.split(r'\s+', e.strip(), maxsplit=1)
                self.path_hash[p]+=h #combine hashes from different .remdups_x.y
-   def walkhashes(self
-         , startdir='.'
-         , excludedirs=[]
-         ):
+   def walkhashes(self):
       for root, dirs, files in os.walk(self.startdir):
          for name in files:
             path = os.path.join(root, name)
             if path not in self.path_hash:
                self(path)
-            for exclude in self.excludedirs:
+            for exclude in self.exclude_dir:
                if exclude in dirs:
                   dirs.remove(exclude)
    def __call__(self,path):
+      #path='__init__.py'
       blocksize = filecmp.BUFSIZE
       hashers = dict()
-      sm = [(s,eval('hashlib.' + m)()) for hf in hashfiles for s,m in [re.split('_|\.',hf)[2:]]]
+      sm = [[s,eval('hashlib.' + m)()] for hf in self.hashfiles for s,m in [re.split('_|\.',hf)[2:]]]
       if any([s.startswith('e') for s,m in sm]):#exif
          try:
             from PIL import Image
@@ -170,9 +164,12 @@ class Hasher:
                   sm[i][0] = 'c'
       if any([s.startswith('c') or s.startswith('b') for s,m in sm]):#content,block
          with open(path, 'rb') as _file:
+            #_file=open(path,'rb')
+            #_file.close()
             buf = _file.read(blocksize)
             while len(buf) > 0:
                for s,m in sm:
+                  #s,m=sm[0]
                   if s.startswith('c') or s.startswith('b'):
                      m.update(buf)
                if not any([s.startswith('c') for s,m in sm]):#no content
@@ -188,22 +185,23 @@ class Hasher:
          for s,m in sm:
             if s.startswith('d'):
                m.update(mtime)
-      hshs = [m.hexdigest() for s,m in enumerate(sm)]
+      hshs = [m.hexdigest() for s,m in sm]
       self.path_hash[path] = ''.join(hshs)
       for i,hsh in enumerate(hshs):
-         hashes2write[i].append((hsh,path))
+         #i,hsh = 0,hshs[0]
+         self.hashes2write[i].append((hsh,path))
 
-def _same_tail(paths):
+def _same_tail(paths,sep=os.sep):
    '''return common tail of paths if any
    >>> paths = ['b/a', 'c/a', 'u/v/a']
-   >>> _same_tail(paths)
+   >>> _same_tail(paths,sep='/')
    'a'
    >>> paths = ['b/x', 'c/x', 'u/v/y']
    >>> _same_tail(paths)
    ''
 
    '''
-   spathreversed = [list(reversed(p.split(os.sep))) for p in paths]
+   spathreversed = [list(reversed(p.split(sep))) for p in paths]
    allsame = lambda e: all([e[0] == x for x in e])
    _sametail = []
    for pathentry in zip_longest(*spathreversed):
@@ -247,25 +245,26 @@ def _genout(output):
          yield grp
    return output
 
-class RemDups(object):
+class RemDups:
 
    def __init__(self, args):
       self.args = args
       self.hasher = Hasher(
-            startdir = args.fromdir
-            , excludedirs=args.exclude_dir
+              startdir = '.' if 'fromdir' not in args else args.fromdir,
+              exclude_dir = [] if 'exclude_dir' not in args else args.exclude_dir
             )
 
+      scriptn = args.script.name
+      #scriptn = 'xx'
       win32 = sys.platform=='win32'
       s = [ 
-            args.script.name.endswith('.sh'),
-            args.script.name.endswith('.bat'),
-            args.script.name.endswith('dodo.py')
+            scriptn.endswith('.sh'),
+            scriptn.endswith('.bat'),
+            scriptn.endswith('dodo.py')
             ]
-      if args.script.name == 'stdout':
-         s[win32] = 1
+      if not any(s): s[win32] = True
 
-      batch,shscript,dodo = range(len(s))
+      batch,sh,dodo = range(len(s))
       self.scrpt = s.index(True)
       self.flnm = [
             lambda fn: win32 and _convunix(fn) or fn,
@@ -298,22 +297,20 @@ class RemDups(object):
             "#"
             ]
 
-      cms = _cmt[self.scrpt]
-
       self.comment_outs = [_html_files]
       for cmnt in args.comment_out:
          self.comment_outs.append(lambda x, c=cmnt: c in x)
 
       self.keepers = []
       for keepin in args.keep_in:
-         keepers.append(lambda values: filter(
+         self.keepers.append(lambda values: filter(
             lambda x, k=keepin: k in x, values))
          for keepout in args.keep_out:
-            keepers.append(lambda values: filter(
+            self.keepers.append(lambda values: filter(
                lambda x, k=keepout: k not in x, values))
 
-            if not self.args.hash_only:
-               self.find_dups()
+      if not self.args.hash_only:
+         self.find_dups()
 
    def find_dups(self):
       '''returns groups of same files tuple (no same name, with same name)
@@ -372,6 +369,7 @@ class RemDups(object):
          lenk = lambda x: len(x)
          equal = lambda x: x
          tokeep = self.keepers + [equal]
+         cms = self._cmt[self.scrpt]
          for tail, same in tail_same:
             yield ''
             yield cms+':#' + tail + '{{{'
@@ -435,37 +433,25 @@ class RemDups(object):
          self.args.script.write('\n'.join([o for o in _genout(output)]))
       return output
 
-
-remdups = None
 def rm(args):
-   global remdups
-   if not remdups:
-      remdups = RemDups(args)
+   remdups = RemDups(args)
    remdups.rm(args)
 def cp(args):
-   global remdups
-   if not remdups:
-      remdups = RemDups(args)
+   remdups = RemDups(args)
    remdups.cp(args)
 def mv(args):
-   global remdups
-   if not remdups:
-      remdups = RemDups(args)
+   remdups = RemDups(args)
    remdups.mv(args)
 def dupsoftail(args):
-   global remdups
-   if not remdups:
-      remdups = RemDups(args)
+   remdups = RemDups(args)
    remdups.dupsoftail(args)
 def dupsof(args):
-   global remdups
-   if not remdups:
-      remdups = RemDups(args)
+   remdups = RemDups(args)
    remdups.dupsof(args)
 
 def set_default_subparser(parser, argv, name):
    subparser_found = False
-   for arg in sys.argv[1:]:
+   for arg in argv[1:]:
       if arg in ['-h', '--help']:  # global help if no subparser
          break
    else:
@@ -473,21 +459,10 @@ def set_default_subparser(parser, argv, name):
         if not isinstance(x, argparse._SubParsersAction):
            continue
         for sp_name in x._name_parser_map.keys():
-           if sp_name in sys.argv[1:]:
+           if sp_name in argv[1:]:
               subparser_found = True
       if not subparser_found:
-         sys.argv.insert(1, name)
-#   for x in parser._subparsers._actions:
-#     if not isinstance(x, argparse._SubParsersAction):
-#        continue
-#     for sp_name in x._name_parser_map.keys():
-#        if sp_name in argv:
-#           subparser_found = True
-#   if not subparser_found:
-#      if argv==sys.argv:
-#         argv.insert(1, name)
-#      else:
-#         argv.insert(0, name)
+         argv.insert(1, name)
 
 def parse_args(argv):
    """parses the arguments and returns a dictionary of them
@@ -506,10 +481,7 @@ def parse_args(argv):
    cdupsoftail = subparsers.add_parser('dupsoftail',help=dupsoftail.__doc__)
    cdupsoftail.add_argument('tail',action='store')
    cdupsoftail.set_defaults(func=dupsoftail)
-   for p in [cmv,ccp]:
-      p.add_argument('--sort',action='store',default='%y%m|%d%H%M%S',help="| separates dir and name. Else see https://docs.python.org/3/library/datetime.html#strftime-strptime-behavior")
-      p.add_argument('fromdir',action='store')
-   for p in [crm,cmv,ccp,cdupsof,cdupsoftail]:
+   for p in [crm,cmv,ccp]:
       p.add_argument('-s','--script', action="store", type=argparse.FileType('w',encoding='utf-8'), required=True,
             help='Write to specified script. Required, because name of script determines format.')
       p.add_argument(#only_same_name
@@ -540,6 +512,9 @@ def parse_args(argv):
       p.add_argument(#hash_only
             '-y','--hash-only', action='store_true',
             help='After updating .remdups_x.y no script is generated.')
+   for p in [cmv,ccp]:
+      p.add_argument('--sort',action='store',default='%y%m|%d%H%M%S',help="Resort to new folders. | separates dir and name. Else see https://docs.python.org/3/library/datetime.html#strftime-strptime-behavior")
+      p.add_argument('fromdir',action='store')
    set_default_subparser(parser,argv,'rm')
    return parser.parse_args(argv[1:])
 
