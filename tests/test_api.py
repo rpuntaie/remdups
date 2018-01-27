@@ -37,29 +37,56 @@ def test_haslist_more(tmpworkdir):
   hf = remdupsfile(*ah[0])
   assert os.path.exists(hf)
   h=Hasher()
+  h.load_hashes()
+  h.update_hashes()
   with open(hf,'r') as f:
     lns = f.readlines()
-  assert len(lns)==lenah
-  assert len(h.hash_paths)==lenah
+  assert len(lns)==0 #.remdups_* ignored
 
 @pytest.fixture
 def img(tmpworkdir):
-  img = PIL.Image.new('RGB', (1000, 1000))
+  img = PIL.Image.new('RGB', (100, 100))
   draw = ImageDraw.Draw(img)
   draw.text((10, 10), "img", fill=(255, 0, 0))
   del draw
-  img.save('image.jpg','jpeg')
-  return 'image.jpg'
+  img.save('img.jpg','jpeg')
+  return 'img.jpg'
 
-def test_haslist_e(img):
-  args=parse_args(['remdups','--script','s.sh','--hash-only'])
+@pytest.fixture
+def remdups(request,img):
   hf = '.remdups_e.sha256'
   with open(hf,'w'):pass
   shutil.copy2(img,'new'+img)
-  rd = RemDups(args)
+  rd = RemDups()
+  #import pdb; pdb.set_trace()
+  rd.hasher.update_hashes()
   with open(hf,'r') as f:
     lns = f.readlines()
-  assert len(lns)==4
+  assert len(lns)==2 #.remdups_* ignored
+  with pytest.raises(AttributeError):
+    rd.with_same_tail
+  with pytest.raises(AttributeError):
+    rd.no_same_tail
+  return rd
+
+@pytest.mark.parametrize('cmd,script',zip(['rm','cp','mv'],['script.sh','script.bat']))
+def test_find_dups(remdups,cmd,script):
+  cmds=getattr(remdups,cmd)(script=argparse.FileType('w',encoding='utf-8')(script))
+  assert len(remdups.with_same_tail)==0
+  assert len(remdups.no_same_tail)==1 #script.sh has no duplicate
+  tails = [tail for tail, paths in remdups.no_same_tail]
+  assert not any(tails)
+  assert len(remdups.no_same_tail[0][1]) == 2
+  assert len(cmds) == 9
+  assert os.path.exists(script)
+  remdups.args.script.close()
+  with open(script,'r') as f:
+    lns = f.readlines()
+  assert len(lns) == 9
+  if script.endswith('.sh'):
+    assert not any([r'\\' not in x for x in cmds])
+  if script.endswith('.bat'):
+    assert not any([r'/' not in x for x in cmds])
 
 #def test_haslist_default(tmpworkdir):
 #  h=Hasher()

@@ -1,3 +1,6 @@
+   With no prior .remdups_*, this is equivalent to
+
+     $find . -not -type d -exec sha256sum {} \; > .remdups_c.sha256
 
 ================================
 remdups - remove duplicate files
