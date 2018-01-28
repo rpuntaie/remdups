@@ -2,6 +2,16 @@
 
      $find . -not -type d -exec sha256sum {} \; > .remdups_c.sha256
 
+
+paths not in current dir will have a '//' or '\\\\'  to mark the start of tree when copying here
+
+
+API usage:
+  import remdups
+  with open('.remdups_c.sha256','w'): pass
+  remdups.resort('../tmp',"%y%m/%d_%H%M%S")
+
+
 ================================
 remdups - remove duplicate files
 ================================

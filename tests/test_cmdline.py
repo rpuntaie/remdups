@@ -32,6 +32,8 @@ def test_defaults(tmpworkdir,x):
    assert (x, 's.sh', [], [], [], False, False) == \
        (pa.cmd,pa.script.name,pa.comment_out,pa.keep_in,pa.keep_out,pa.only_same_name,pa.safe)
    assert os.path.exists('s.sh')
+   del pa
+   os.remove('s.sh')
 
 @pytest.mark.parametrize('x',['dupsof','dupsoftail'])
 def test_defaults_query(tmpworkdir,x):
@@ -42,6 +44,8 @@ def test_defaults_query(tmpworkdir,x):
 def test_append(request,a):
    pa=parse_args(['remdups','cp','-s','s.sh',a, 'a',a, 'b'])
    assert vars(pa)[a.strip('-').replace('-','_')]==['a','b']
+   del pa
+   os.remove('s.sh')
 
 @pytest.mark.parametrize('a',['--filter','--exclude'])#-f,-e
 def test_append_update(request,a):
