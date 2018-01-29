@@ -510,8 +510,9 @@ class Command:
       tokeep = self.keepers + [equal]
       html_files_suffix = self.getarg('html_files_suffix')
       for tail, paths in tail_paths:
-         yield ''
-         yield c+':#' + tail + '{{{'
+         if len(paths) > 1:
+            yield ''
+            yield c+':#' + tail + '{{{'
          # take the shortest path in the smallest set
          keep = sorted(filter(equal,
             [sorted(kp(paths), key=lenk) for kp in tokeep]), key=lenk)[0][0]
@@ -533,7 +534,8 @@ class Command:
                htmlfiles = filename + html_files_suffix
                if os.path.exists(htmlfiles):
                   yield cc+self.dircommand(htmlfiles)
-         yield c+':#}}}'
+         if len(paths) > 1:
+            yield c+':#}}}'
 
    def out(self,output):
       def _genout(output):
@@ -544,8 +546,10 @@ class Command:
                yield ''
             else:
                yield grp
+      #import pdb; pdb.set_trace()
       if 'script' in self.args and self.args.script != None:
          self.args.script.write('\n'.join([o for o in _genout(output)]))
+         self.args.script.close()
 
    def commands(self):
       self.groups()
@@ -565,6 +569,9 @@ class Command:
          for line in self.gen_command(self.with_same_tail):
             cmds.append(line)
          cmds.append(c+'## }}}')
+      if self.args.cmd != 'rm':
+         for line in self.gen_command([('',paths) for h, paths in self.hasher.hash_paths.items() if len(paths) == 1]):
+            cmds.append(line)
       self.out(cmds)
       return cmds
 

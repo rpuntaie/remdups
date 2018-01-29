@@ -51,7 +51,7 @@ def dirwithfiles(tmpworkdir):
   with open('some.txt','w') as f: f.write('some.txt text here')
   os.mkdir('sub')
   [shutil.copy2(x,'sub') for x in glob('*.jpg')]
-  return tmpworkdir
+  return str(tmpworkdir)
 
 @pytest.fixture
 def emptyhashfiles(dirwithfiles):
@@ -245,7 +245,10 @@ def test_find_dups(dups,cmd,script):
   tails = [tail for tail, paths in dups.no_same_tail]
   assert not any(tails)
   assert len(dups.with_same_tail[0][1]) == 2
-  assert len(cmds) == 14
+  if cmd=='rm':
+    assert len(cmds) == 14
+  else:
+    assert len(cmds) == 15
   anybackslashes = any(['\\' in x for x in cmds])
   if script.endswith('.bat'):
     assert anybackslashes
@@ -260,27 +263,42 @@ def test_find_dups(dups,cmd,script):
   lns = []
   with open(script,'r') as f:
     lns = f.readlines()
-  assert len(lns) == 14
+  if cmd=='rm':
+    assert len(lns) == 14
+  else:
+    assert len(lns) == 15
           
 @pytest.fixture
 def updated(here_otherdir):
   here,other = here_otherdir
-  main(parse_args(['remdups','update',str(other)]))
+  main(parse_args(['remdups','update',other]))
   for hf in glob('.remdups_*'):
     with open(hf,'r') as hfh:
       lns = hfh.readlines()
     assert len(lns)>0
     for e in lns:
       assert normp('//') in e
-  return here_otherdir
+  return here,other
 
 def test_cp(updated):
   here,other = updated
-  main(parse_args(['remdups','cp','-s','s.sh']))
+  main(parse_args(['remdups','cp','-s','s.sh','-i','sub']))
   ld = os.listdir('.')
-  assert 'img.jpg' in ld
-  assert 'img.jpg' in ld
-  assert 'sub' not in ld
+  assert 'img.jpg' not in ld #first s.sh must run
+  assert 's.sh' in ld
+  with open('s.sh','r') as s:
+    lns = s.readlines()
+    assert len(lns)>1
+  ru = subprocess.run('sh s.sh')
+  assert ru.returncode == 0
+  ld = os.listdir('.')
+  assert 'img.jpg' not in ld
+  assert 'newimg.jpg' not in ld
+  assert 'some.txt' in ld
+  assert 'sub' in ld
+  ldsub = os.listdir('sub')
+  assert 'img.jpg' in ldsub
+  assert 'newimg.jpg' in ldsub
           
 ##other
 def test_convuinx(request):
