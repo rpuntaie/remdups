@@ -1,0 +1,3 @@
+PIL,piexif
+
+#requires: pytest-toolbox
