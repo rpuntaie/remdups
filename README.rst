@@ -1,17 +1,3 @@
-   With no prior .remdups_*, this is equivalent to
-
-     $find . -not -type d -exec sha256sum {} \; > .remdups_c.sha256
-
-
-paths not in current dir will have a '//' or '\\\\'  to mark the start of tree when copying here
-
-
-API usage:
-  import remdups
-  with open('.remdups_c.sha256','w'): pass
-  remdups.resort('../tmp',"%y%m/%d_%H%M%S")
-
-
 ================================
 remdups - remove duplicate files
 ================================
@@ -23,25 +9,64 @@ remdups - remove duplicate files
 remdups
 =======
 
-``remdups`` generates a script that removes duplicate files starting from file hashes.
-It can also generate a these file hashes. It allows to specify which files to keep 
-and which to remove. Byte-wise comparison available to be on the safe side.
+``remdups`` generates a script to
 
-The resulting script should be further inspected, possibly re-generated with different parameters
-and finally executed separately in your shell.
+- remove duplicate files
 
-Known Issues
-============
+- copy files from another directory to this one, ignoring duplicates
 
-Linux:
-    None
+- move files from another directory to this one, ignoring duplicates
+  
+The resulting script should be further inspected before executing it in your shell.
+
+Usage
+=====
+
+0) Optional. You can choose one or more source+hashing methods, via e.g.::
+
+      cat > .remdups_c.sha512
+      cat > .remdups_e.md5
+
+   All of .remdups_{c,b,d,e,n}.{sha512, sha384, sha256, sha224, sha1, md5} 
+   contribute to the final hash. If you don't make such a file, the default is::
+
+     .remdups_c.sha256
+
+   {'c': 'content', 'b': 'block', 'd': 'date', 'e': 'exif', 'n': 'name'}
+
+1. Create the hash file by either of (can take a long time)::
+
+     remdups
+     remdups update
+     remdups update <fromdir>
+
+   The hashes are added to all .remdups_x.y. To rehash all files::
+
+     rm .remdups_*
+
+2. Make a script with rm, mv, cp commands.
+   It can be repeated with different options until the script is good.
+
+   $remdups rm -s script.sh
+   $remdups cp -s script.bat #if you used <fromdir>
+   $remdups mv -s script.py  #if you used <fromdir>
+
+   If the file ends in .sh, cp is used and the file names are in linux format.
+   This is usable also on Windows with MSYS, MSYS2 and CYGWIN.
+
+   If the file ends in .bat, Windows commands are used.
+
+   If the file ends in .py, python functions are used.
+
+3. Inspect the script and go back to 2., if necessary.
+   Changes to the script can also be done with the editor.
+
+4. execute script
+
+   $./script.sh
 
 
-Windows: 
-    A gave it a try on Windows Cmd, but ran into problems due to 
-    `Python Issue 1602 <http://bugs.python.org/issue1602>`_.
-    So for file names with encodings falling into this issue it won't work.
-
+Alternatively you can use remdups from your own python script, or interactively from a python prompt.
 
 Install
 =======
@@ -49,168 +74,132 @@ Install
 
 - Directly from PyPi:
 
-.. code-block:: console
+.. code:: console
 
   $ pip install remdups
 
 
-- From github: Clone, change to directory and do
+- From `github`_: Clone, change to the directory and do
 
-.. code-block:: console
+.. code:: console
 
   $ python setup.py install
 
 - If you plan to extend this tool
 
-  - fork on github
-  - clone locally from your fork
+  - fork on `github`_
+  - clone from your fork to you PC
   - do an editable install
 
-  .. code-block:: console
+  .. code:: console
 
     $ pip install -e .
 
   - test after change and bring coverage to 100%
 
-  .. code-block:: console
+  .. code:: console
 
-    $ py.test test_remdups.py --cov remdups.py --cov-report term-missing
+    $ py.test --cov remdups.py --cov-report term-missing
 
-  - consider sharing changes useful for others (github pull request).
-
-Usage
-=====
-
-The intended procedure to remove duplicates with remdups is:
-
-1. create file hash list:
-
-   .. code-block:: console
-
-     $ remdups --hash > hashes.txt
-
-   or 
-
-   .. code-block:: console
-
-     $ find . -not -type d -exec sha256sum {} \; > hashes.txt
-
-2. make a script with remove commands
-
-   .. code-block:: console
-     
-     $ remdups [options] hashes.txt nodupes.sh
-
-3. inspect the script and go back to 2., if necessary, else 4.
-
-4. execute script
-
-     $ nodupes.sh
-
-5. remove empty directories:
-
-   .. code-block:: console
-
-     $ find . -empty -type d -delete
-
-
-All in One
-----------
-
-This takes long, because all the hashes are create anew.
-It is therefore not suitable to iterate with new parameters.
-
-.. code-block:: console
-    
-  $ remdups
-
-
-File Hash List
---------------
-
-The file hash list as an intermediate starting point makes it faster to iterate with new parameters.
-
-There are more ways to generate the file hash list.
-
-- Use find with a checksum generator
-  
-
-.. code-block:: console
-
-  $ find . -not -type d -exec sha256sum {} \; > hashes.txt
-
-- Use remdups
-
-  ``remdups`` allows to make a file hash list with the ``--hash`` option and no input file.
-
-  .. code-block:: console
-  
-    $ remdups --hash > hashes.txt 
-
-
-With ``--hash`` one can use the ``--exclude-dir`` to ignore certain directories.
-
-``--hash`` together with a file can replace system checksum tools.
-``remdups`` has these source options: ``--name``, ``--namedate``, ``--exif``, ``--content``, ``--block``.
-For full content ``md5sum`` or ``shaXsum`` (X=1, 224, 256, 384, 512) system tools are faster.
+  - consider sharing changes useful for others (`github`_ pull request).
 
 .. hint:: 
 
-    For more advanced file selection ``find`` should be used.
-    The following example ignores directory ``old`` and produces a hash for all JPEG files by their EXIF data.
+    For more advanced file selection ``find`` can be used.
+    The following example ignores directory ``old`` and produces a hash for all JPEG files:
 
-    .. code-block:: console
+    .. code:: console
 
-      $ find . -path "old" -prune -or -not -type d -and -iname "\*.jpg" -exec remdups --exif --hash {} \;
+       $ find . -path "old" -prune -or -not -type d -and -iname "\*.jpg" -exec sha256sum {} \; > .remdups_c.sha256
+
+Command Line
+============
+
+The following is in addition to the help given with::
+
+  remdups --help
+
+The sources for the hashes can be::
+
+   {'c': 'content', 'b': 'block', 'd': 'date', 'e': 'exif', 'n': 'name'}
+
+Don't include ``n``, because same files with different names cannot be found. ``c`` is the best.
+
+Do e.g::
+
+      cat > .remdups_b.sha512
+      cat > .remdups_c.sha256
+
+Fill the hash files from the current directory::
+
+  remdups update
+
+Or fill the hash files from another directory::
+
+  remdups update <fromdir>
+
+In the latter case the paths in the hash files will have a ``//`` or ``\\``
+to mark the start for the new relatives paths in a subsequent ``mv`` or ``cp`` command.
+
+Once the hash files are filled create the script. It depend on the extension used::
+
+  remdups <command> -s script.sh <options>
+  remdups <command> -s script.bat <options>
+  remdups <command> -s script.py <options>
+
+``command`` can be ``rm``, ``cp``, ``mv``.
+There is also ``dupsof`` and ``dupsoftail``, but they don't take a ``--script``, but print the output.
+
+``--keep-in``, ``--keep-out`` and ``--comment-out`` will remove different files of a duplicate group.
+``--safe`` will do a byte-wise comparison, before creating the script. That takes longer.
+
+``cp`` and ``mv`` also take ``--sort``: In this case the tree is not recreated, but the files are sorted
+to the provided tree structure using the file modification date. See https://docs.python.org/3/library/datetime.html#strftime-strptime-behavior.
+
+API
+===
+
+With your own python script you can load the file for hashing and use the
+loaded content immediately to create the new file, if not duplicate.
+
+.. code:: python
+
+  from remdups import *
+  hasher = Hasher()
+  allduplicates = []
+  for filename,duplicates,content in hasher.foreachcontent('.'):
+    if duplicates:
+      allduplicates.append(f)
+    else:
+      assert content!=[] #some .remdups_ must be with (c)ontent
+      with open('afilehere','wb') as nf:
+        for buf in content:
+          nf.write(buf)
+
+``foreachcontent()`` uses ``scandir()``, but does not add duplicate files to the ``.remdup_`` files.
+
+.. code:: python
+
+   for f in hasher.scandir(otherdir,filter=['*.jpg'],exclude=['**/old/*']):
+      duplicates = hasher.duplicates(f)
+      yield (f,duplicates,kw['content'])
+      if duplicates:
+         hasher.clear(f)
+      else:
+         hasher.update_hashfiles()
+
+If you don't want to keep the content, don't provide a ``[]`` for ``content`` in ``scandir``.
+``scandir()`` will hash all files not yet in the ``.remdup_`` files and will return the file name.
+
+This code resorts a tree by hashing and creating a copy, if not duplicate.
+
+.. code:: python
+
+   import os
+   import remdups
+   os.chdir('dir/to/resort/to')
+   with open('.remdups_c.sha256','w'): pass
+   remdups.resort('../some/dir/here',"%y%m/%d_%H%M%S")
 
 
-Generate the remove script
---------------------------
-
-You start with the file hash list
-  
-.. code-block:: console
-
-  $ remdups [options] hashes.txt > rm.sh
-
-or 
-
-.. code-block:: console
-
-  $ remdups [options] hashes.txt rm.sh
-
-
-At this stage you would use 
-
-- ``-i`` and ``-o`` to choose which files get removed
-- ``-c`` to comment out the remove command
-- ``-r`` and ``-d`` to specify alternative remove commands for file and directory
-- ``-x`` to specify the extension used for html files subdirectory.
-  It defaults to ``_files``. If it starts with hyphen like ``-Dateien`` do ``-x="-Dateien"``.
-- ``-n`` ``--only-same-name`` to ignore duplicates with different name
-- ``-s`` ``--safe`` to do a final bytewise compare to make sure that files are really the same.
-  You should add this option for the final remove script version. It can take a long time.
-  After that you possibly still do manual changes to the script and then you execute it.
-
-Help
-====
-
-Check out:
-
-  $ remdups --help
-
-For use from within python check out the code.
-
-Similar tools
-=============
-
-I had to clean a sprawling directory and used python,
-then decided to make a little command line tool out of it. 
-
-Although I did a little googling before, 
-only afterwards I found other links with similar tools.
-I did not test them because my directory is deduped by now. 
-
-I have made a Wikipedia page listing similar tools: 
-`List of Duplicate File Finders <https://en.wikipedia.org/wiki/List_of_duplicate_file_finders>`_
-
+.. _`github`: https://github.com/rpuntaie/remdups

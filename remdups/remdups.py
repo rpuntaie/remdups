@@ -16,28 +16,35 @@
 r'''
 Usage:
 
-1. Create file hash list .remdups_c.sha256 in current directory:
 
-     $remdups
-     $remdups update
+0) Optional. You can choose one or more source+hashing methods, via e.g.::
 
-   New files are added to .remdups_x.y. To rehash all files, first remove .remdups_*.
+      cat > .remdups_c.sha512
+      cat > .remdups_e.md5
 
-   Do 
+   All of .remdups_{c,b,d,e,n}.{sha512, sha384, sha256, sha224, sha1, md5} 
+   contribute to the final hash. If you don't make such a file, the default is::
 
-      $cat > .remdups_c.sha512
-
-   to determine the hash method in advance. More methods are possible.
-   All of .remdups_{c,b,d,e,n}.{sha512, sha384, sha256, sha224, sha1, md5} present, are considered.
+     .remdups_c.sha256
 
    {'c': 'content', 'b': 'block', 'd': 'date', 'e': 'exif', 'n': 'name'}
 
-2. Make a script with rm, mv, cp commands to current directory.
+1. Create the hash file by either of::
+
+     remdups
+     remdups update
+     remdups update <fromdir>
+
+   The hashes are added to all .remdups_x.y. To rehash all files::
+
+     rm .remdups_*
+
+2. Make a script with rm, mv, cp commands.
    It can be repeated with different options until the script is good.
 
-   $remdups script.sh
-   $remdups mv script.bat
-   $remdups mv script.py
+   $remdups rm -s script.sh
+   $remdups cp -s script.bat #if you used <fromdir>
+   $remdups mv -s script.py  #if you used <fromdir>
 
    If the file ends in .sh, cp is used and the file names are in linux format.
    This is usable also on Windows with MSYS, MSYS2 and CYGWIN.
@@ -53,9 +60,7 @@ Usage:
 
    $./script.sh
 
-
-Alternatively you can use remdups from a python script, or interactively from a python prompt.
-
+Alternatively you can use remdups from your own python script, or interactively from a python prompt.
 '''
 
 import sys
@@ -230,7 +235,7 @@ class Hasher:
       if any([s.startswith('e') for s,m in sm]):#exif
          try:
             from PIL import Image
-            img = Image.open(repth) #TODO piexif instead
+            img = Image.open(repth)
             exif_data = _encode(str(img._getexif()))
             #exif_data = b"{'a':''}",len(exif_data)
             if len(exif_data) < 8:

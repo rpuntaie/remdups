@@ -6,14 +6,11 @@ import os, os.path
 
 __version__ = '1.3'
 
-requires = []
+with open('requirements.txt') as f: requires=f.read().splitlines()
+with open('requirements.test.txt') as f: develop=f.read().splitlines()
 
 extras = {
-    'develop': [
-        'Pillow>=2.1.0',
-        'pytest>=2.4.1',
-        'pytest-cov>=1.6'
-    ]
+    'develop': develop
 }
 
 def read(fname):
@@ -35,8 +32,7 @@ setup(name = 'remdups',
         'Operating System :: OS Independent',
         'Operating System :: POSIX',
         'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3.2',
-        'Programming Language :: Python :: 3.3',
+        'Programming Language :: Python :: 3.6',
         'Intended Audience :: End Users/Desktop',
         'Intended Audience :: System Administrators',
         'Intended Audience :: Information Technology',
@@ -46,7 +42,7 @@ setup(name = 'remdups',
         ],
 
     install_requires = requires,
-    extras_require = extras,
+    extras_require = {'develop': develop},
     long_description = read('README.rst'),
     packages=['remdups'],
     include_package_data=False,
