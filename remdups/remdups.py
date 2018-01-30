@@ -11,7 +11,7 @@
 # 2013-10-07: Version 1.0
 # 2013-10-31: Version 1.1 (documentation changes/corrections)
 # 2016-05-29: Version 1.2 (fails to install -> fix)
-# 2018-01-24: Version 1.3 (.remdups_c.sha256,... , options, makefile instead of script)
+# 2018-01-24: Version 1.3 (.remdups_c.sha256; .sh, .bat, .py script; rm, cp, mv commands)
 
 r'''
 Usage:
@@ -745,5 +745,8 @@ def parse_args(argv):
 def main(args):
    args.func(args)
 
-if __name__ == '__main__':
+def run():
    main(parse_args(sys.argv)) #pragma: no cover
+
+if __name__ == '__main__':
+   run() #pragma: no cover

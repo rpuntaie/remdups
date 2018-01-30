@@ -1,5 +1,8 @@
 #! /usr/bin/env python
 
+#sudo python setup.py bdist_wheel
+#twine upload ./dist/remdups*.whl
+
 from setuptools import setup
 import platform
 import os, os.path
@@ -50,7 +53,7 @@ setup(name = 'remdups',
     tests_require=[],
     entry_points={
          'console_scripts': [
-         'remdups = remdups.remdups:main',
+         'remdups = remdups.remdups:run',
               ]
       },
 
