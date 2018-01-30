@@ -166,7 +166,7 @@ class Hasher:
       yes = [normp(f[1:]) for f in exclude if f.startswith('!')]
       nfromdir = self.relpath(fromdir)
       for root, dirs, files in os.walk(nfromdir):
-         drfl = [(0,x) for x in files]+[(1,y) for y in dirs]
+         drfl = [(0,x) for x in sorted(files)]+[(1,y) for y in sorted(dirs)]
          newdirs=[]
          for dir,name in drfl:
             path = joinp(root, name)
@@ -176,9 +176,9 @@ class Hasher:
             if not dir:
                if not (any([fnmatch(repth,f) for f in fok]) or not fok):
                   continue
-               if repth not in self.path_hash:
-                  self.hash(repth,content)
-                  yield repth
+               if path not in self.path_hash:
+                  self.hash(path,content)
+                  yield path
                   if content!=None:
                      content.clear()
             else:
@@ -205,7 +205,10 @@ class Hasher:
       for apth, ahsh in self.path_hash.items():
          self.hash_paths[ahsh].append(apth)
    def duplicates(self,f_or_substr):
-      sub = normp(f_or_substr)
+      if sys.platform == 'win32':
+         sub = normp(f_or_substr)
+      else:
+         sub = f_or_substr
       _hash = [h for p, h in self.path_hash.items() if sub in p]
       if not _hash or len(_hash) > 1:
          raise ValueError('Path does not (uniquely) define a file')

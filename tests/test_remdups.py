@@ -4,6 +4,8 @@
 
 #This succeeds on Windows with c:\msys64\usr\bin in %PATH% and
 #mv C:\Windows\System32\find.exe C:\Windows\System32\findw.exe
+#for .sh, .bat, .py
+#On linux .bat cannot be executed
 
 import os
 import tempfile
@@ -27,11 +29,11 @@ from remdups import *
 
 def run(s):
   if '.sh' in s:
-    return subprocess.run('sh '+s)
+    return subprocess.run('sh '+s,shell=True)
   elif '.bat' in s and sys.platform=='win32':
     return subprocess.run('cmd /C '+s)
   elif '.py' in s:
-    return subprocess.run('python '+s)
+    return subprocess.run('python '+s,shell=True)
 
 ##fixtures
 
@@ -205,7 +207,10 @@ def test_hash_and_write(emptyhashfiles,othertmpdir):
           nf.write(buf)
       same = filecmp.cmp(f, nfnf, False)
       assert same
-  assert allduplicates==[hshr.relpath(x) for x in ['sometxt.txt','some_files/img.jpg','sub/img.jpg','sub/newimg.jpg']]
+  if sys.platform == 'win32':
+    assert allduplicates==['.\\sometxt.txt','.\\some_files\\img.jpg','.\\sub\\img.jpg','.\\sub\\newimg.jpg']
+  else:
+    assert allduplicates==['./sometxt.txt','./some_files/img.jpg','./sub/img.jpg','./sub/newimg.jpg']
   hshr.clear()
   assert len(hshr.path_hash)==0
   allduplicates = []
@@ -274,7 +279,7 @@ def test_find_dups(dups,cmd,script):
   assert len(dups.with_same_tail[0][1]) == 3
   assert len(cmds) > 1
   anybackslashes = any(['\\' in x for x in cmds])
-  if script.endswith('.bat'):
+  if script.endswith('.bat') and sys.platform=='win32':
     assert anybackslashes
   else:#.sh
     assert not anybackslashes
@@ -333,12 +338,13 @@ def test_cp(updated,script):
     lns = s.readlines()
     assert len(lns)>1
   ru = run(script)
-  assert ru.returncode == 0
-  ld = os.listdir('.')
-  assert 'img.jpg' in ld
-  assert 'newimg.jpg' in ld
-  assert 'some.html' in ld
-  assert 'sub' not in ld
+  if ru != None:
+    assert ru.returncode == 0
+    ld = os.listdir('.')
+    assert 'img.jpg' in ld
+    assert 'newimg.jpg' in ld
+    assert 'some.html' in ld
+    assert 'sub' not in ld
 
 @pytest.mark.parametrize('script',['s.sh','s.bat','s.py'])
 def test_mv(updated,script):
@@ -351,18 +357,19 @@ def test_mv(updated,script):
     lns = s.readlines()
     assert len(lns)>1
   ru = run(script)
-  assert ru.returncode == 0
-  ld = os.listdir('.')
-  assert 'img.jpg' not in ld
-  assert 'newimg.jpg' not in ld
-  assert 'some.html' not in ld
-  assert 'sub' in ld
-  ldsub = os.listdir('sub')
-  assert 'img.jpg' in ldsub
-  assert 'newimg.jpg' in ldsub
-  oldldsub = os.listdir(joinp(other,'sub'))
-  assert 'img.jpg' not in oldldsub
-  assert 'newimg.jpg' not in oldldsub
+  if ru != None:
+    assert ru.returncode == 0
+    ld = os.listdir('.')
+    assert 'img.jpg' not in ld
+    assert 'newimg.jpg' not in ld
+    assert 'some.html' not in ld
+    assert 'sub' in ld
+    ldsub = os.listdir('sub')
+    assert 'img.jpg' in ldsub
+    assert 'newimg.jpg' in ldsub
+    oldldsub = os.listdir(joinp(other,'sub'))
+    assert 'img.jpg' not in oldldsub
+    assert 'newimg.jpg' not in oldldsub
           
 @pytest.fixture
 def updatedhere(emptyhashfiles):
@@ -385,14 +392,15 @@ def test_rm(updatedhere,script):
     lns = s.readlines()
     assert len(lns)>1
   ru = run(script)
-  assert ru.returncode == 0
-  ld = os.listdir('.')
-  assert 'img.jpg' in ld
-  assert 'newimg.jpg' in ld
-  assert 'some.html' in ld
-  assert 'sub' not in ld #empty folders are deleted
-  some_files = os.listdir('some_files')
-  assert 'img.jpg' in some_files
+  if ru != None:
+    assert ru.returncode == 0
+    ld = os.listdir('.')
+    assert 'img.jpg' in ld
+    assert 'newimg.jpg' in ld
+    assert 'some.html' in ld
+    assert 'sub' not in ld #empty folders are deleted
+    some_files = os.listdir('some_files')
+    assert 'img.jpg' in some_files
 
 ##other
 def test_convuinx(request):
