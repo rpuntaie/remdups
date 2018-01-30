@@ -100,6 +100,16 @@ def _encode(s):
    else:  # pragma: no cover
       return s  # pragma: no cover
 
+def remove_empty_dirs(path):          #pragma: no cover
+   for f in os.listdir(path):         #pragma: no cover
+      p = os.path.join(path, f)       #pragma: no cover
+      if os.path.isdir(p):            #pragma: no cover
+         remove_empty_dirs(p)         #pragma: no cover
+   if not os.listdir(path):           #pragma: no cover
+      try:                            #pragma: no cover
+         os.rmdir(path)               #pragma: no cover
+      except: pass                    #pragma: no cover
+
 remdupsfile = lambda a,h: '.remdups_'+a+'.'+h
 
 class Hasher:
@@ -190,11 +200,12 @@ class Hasher:
       for apth, ahsh in self.path_hash.items():
          self.hash_paths[ahsh].append(apth)
    def duplicates(self,f_or_substr):
-      _hash = [h for p, h in self.path_hash.items() if f_or_substr in p]
+      sub = normp(f_or_substr)
+      _hash = [h for p, h in self.path_hash.items() if sub in p]
       if not _hash or len(_hash) > 1:
          raise ValueError('Path does not (uniquely) define a file')
       _hash = _hash[0]
-      return [p for p in self.hash_paths[_hash] if f_or_substr not in p]
+      return [p for p in self.hash_paths[_hash] if sub not in p]
    def clear(self,repth=None):
       if repth:
          _hash = self.path_hash[repth]
@@ -278,7 +289,8 @@ def resort(newdir,scheme="%y%m/%d_%H%M%S"):
          except: pass
          n = len(glob(othernewf+'*'))
          if n:
-           othernewf = othernewf+'_'+str(n)
+           nff,nfe = os.path.splitext(othernewf)
+           othernewf = nff+'_'+str(n)+nfe
          if content==[]:
             raise ValueError('The resort() function needs at least one .remdups_c.* file')
          with open(othernewf,'wb') as nf:
@@ -342,9 +354,11 @@ def fn2dirfn(fn,srt=''):
    else:
       raise ValueError("Not specified where to copy/move, here.")
    newdir,_ = os.path.split(newfn)
-   return fn,newdir,newfn
+   return normp(fn),newdir,newfn
 
 class Command:
+
+   SH,BAT,PY = range(3)
 
    def __init__(self):
       self.hasher = Hasher()
@@ -360,17 +374,11 @@ class Command:
             scriptn.endswith('.bat'),
             scriptn.endswith('.py')
             ]
-      except:
-         s = [0]*3
+      except:  # pragma: no cover
+         s = [0]*3   # pragma: no cover
       if not any(s): s[win32] = 1
 
-      #from shutil import *
-      #from os import *
-      #xmove = lambda x,y: makedirs(y+os.sep,exist_ok=True) and copy2(x,y)
-      #xcopy = lambda x,y: makedirs(y+os.sep,exist_ok=True) and move(x,y)
-      #xmove('tmp.txt','a/b/c')
-      #batch,sh,python = range(len(s))
-      scripttype = s.index(True)
+      self.scripttype = scripttype = s.index(True)
       formatpath = [
             lambda fn: win32 and convunix(fn) or fn,
             lambda fn:  '"' + fn + '"',
@@ -384,7 +392,7 @@ class Command:
             ],
          "cp": [#0,1,2=fn, dest dir, dest full pth
             'mkdir -p {1} & cp {0} {2}',
-            'xcopy /Y {0} {2}',
+            'echo F|xcopy /Y {0} {2}',
             'makedirs({1},exist_ok=True);copy2({0},{2})'
             ],
          "mv": [
@@ -425,12 +433,12 @@ class Command:
       srt = self.getarg('sort','')
       if self.args.cmd == 'rm':
          self.filecommand = lambda f: filecommand[self.args.cmd][scripttype].format(formatpath[scripttype](f))
-         self.dircommand = lambda d: dircommand[self.args.cmd][scripttype].format(formatpath[scripttype](af))
+         self.dircommand = lambda f: dircommand[self.args.cmd][scripttype].format(formatpath[scripttype](f))
       else:
          self.filecommand = lambda f: filecommand[self.args.cmd][scripttype].format(
                *[formatpath[scripttype](af) for af in fn2dirfn(f,srt)]
                )
-         self.dircommand = lambda d: dircommand[self.args.cmd][scripttype].format(
+         self.dircommand = lambda f: dircommand[self.args.cmd][scripttype].format(
                *[formatpath[scripttype](af) for af in fn2dirfn(f,srt)]
                )
       self.comment = comment[scripttype]
@@ -446,9 +454,9 @@ class Command:
       for keepin in keep_in:
          self.keepers.append(lambda values: filter(
             lambda x, k=keepin: k in x, values))
-         for keepout in keep_out:
-            self.keepers.append(lambda values: filter(
-               lambda x, k=keepout: k not in x, values))
+      for keepout in keep_out:
+         self.keepers.append(lambda values: filter(
+            lambda x, k=keepout: k not in x, values))
 
    def groups(self):
       '''add to self two list of groups of same files: no_same_tail, with_same_tail.
@@ -468,12 +476,12 @@ class Command:
                for other in paths[1:]:
                   try:
                      same = filecmp.cmp(first, other, False)
-                  except (OSError, IOError): # pragma no cover
-                     same = True # pragma no cover
+                  except (OSError, IOError): # pragma: no cover
+                     same = True # pragma: no cover
                   if same:
                      this.append(other)
-                  else:
-                     new.append(other)
+                  else: #pragma: no cover
+                     new.append(other) #pragma: no cover
                if len(this) > 1:
                   yield (('group {}: '.format(cnt) if cnt else '') + tail, this)
                   cnt += 1
@@ -508,7 +516,7 @@ class Command:
       lenk = lambda x: len(x)
       equal = lambda x: x
       tokeep = self.keepers + [equal]
-      html_files_suffix = self.getarg('html_files_suffix')
+      html_files_suffix = self.getarg('html_files_suffix','_files')
       for tail, paths in tail_paths:
          if len(paths) > 1:
             yield ''
@@ -546,10 +554,10 @@ class Command:
                yield ''
             else:
                yield grp
-      #import pdb; pdb.set_trace()
       if 'script' in self.args and self.args.script != None:
          self.args.script.write('\n'.join([o for o in _genout(output)]))
-         self.args.script.close()
+         if self.args.script != sys.stdout:
+            self.args.script.close()
 
    def commands(self):
       self.groups()
@@ -557,6 +565,22 @@ class Command:
       cmds = []
       if self.no_same_tail or self.with_same_tail:
          cmds.append(c+'## vim: set fdm=marker')
+      if self.scripttype == Command.PY:
+         cmds.extend(["",
+                  "from shutil import *",
+                  "from os import *",
+                  "xmove = lambda x,y: makedirs(y+sep,exist_ok=True) and copy2(x,y)",
+                  "xcopy = lambda x,y: makedirs(y+sep,exist_ok=True) and move(x,y)",
+                  "def remove_empty_dirs(pth):",
+                  "   for f in listdir(pth):",
+                  "      p = path.join(pth, f)",
+                  "      if path.isdir(p):",
+                  "         remove_empty_dirs(p)",
+                  "   if not listdir(pth):",
+                  "      try:",
+                  "         rmdir(pth)",
+                  "      except: pass",
+                  ])
       if self.no_same_tail:
          cmds.append('')
          cmds.append(c+'## No Same Tail {{{')
@@ -569,6 +593,16 @@ class Command:
          for line in self.gen_command(self.with_same_tail):
             cmds.append(line)
          cmds.append(c+'## }}}')
+      if self.args.cmd == 'rm':
+         #remove empty folders
+         if self.scripttype==Command.BAT:
+            cmds.append('''for /f "delims=" %%d in ('dir /s /b /ad ^| sort /r') do rd "%%d"''')
+            cmds.append('exit /B 0')
+         elif self.scripttype==Command.SH:
+            cmds.append('''find . -type d -empty -delete''')
+         elif self.scripttype==Command.PY:
+            cmds.append('')
+            cmds.append('''remove_empty_dirs('.')''')
       if self.args.cmd != 'rm':
          for line in self.gen_command([('',paths) for h, paths in self.hasher.hash_paths.items() if len(paths) == 1]):
             cmds.append(line)
@@ -599,7 +633,7 @@ class Command:
       args['cmd'] = 'dupsoftail'
       self.init_command(**args)
       self.groups()
-      output = [paths for t, paths in self.with_same_tail if t.endswith(self.args.tail)]
+      output = [paths for t, paths in self.with_same_tail if t.endswith(normp(self.args.substr))]
       self.out(output)
       return output
    def dupsof(self,**args):
@@ -623,9 +657,11 @@ def mv(args):
    acommand = Command()
    return acommand.mv(**vars(args))
 def dupsoftail(args):
+   args.script = argparse.FileType('w')('-')
    acommand = Command()
    return acommand.dupsoftail(**vars(args))
 def dupsof(args):
+   args.script = argparse.FileType('w')('-')
    acommand = Command()
    return acommand.dupsof(**vars(args))
 
@@ -705,4 +741,4 @@ def main(args):
    args.func(args)
 
 if __name__ == '__main__':
-   main(parse_args(sys.argv))
+   main(parse_args(sys.argv)) #pragma: no cover

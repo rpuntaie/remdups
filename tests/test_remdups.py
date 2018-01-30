@@ -19,6 +19,14 @@ import pytest
 
 from remdups import *
 
+def run(s):
+  if '.sh' in s:
+    return subprocess.run('sh '+s)
+  elif '.bat' in s and sys.platform=='win32':
+    return subprocess.run('cmd /C '+s)
+  elif '.py' in s:
+    return subprocess.run('python '+s)
+
 
 ##fixtures
 
@@ -48,14 +56,27 @@ def dirwithfiles(tmpworkdir):
                   "thumbnail":None})
   img.save('img.jpg','jpeg',exif=exifdata)
   img.save('newimg.jpg','jpeg')
-  with open('some.txt','w') as f: f.write('some.txt text here')
+  with open('some.html','w') as f: f.write("""
+<!DOCTYPE html>
+<html>
+<head>
+<title>Page Title</title>
+</head>
+<body>
+  <img src="some_files/img.jpg">
+</body>
+</html> 
+""")
+  shutil.copy2('some.html','sometxt.txt')
   os.mkdir('sub')
   [shutil.copy2(x,'sub') for x in glob('*.jpg')]
+  os.mkdir('some_files')
+  shutil.copy2('img.jpg','some_files')
   return str(tmpworkdir)
 
 @pytest.fixture
 def emptyhashfiles(dirwithfiles):
-  ehf = ['.remdups_{}.sha256'.format(x) for x in Hasher.sources]
+  ehf = ['.remdups_{}.sha256'.format(x) for x in 'c b e'.split()]
   for hf in ehf:
     with open(hf,'w'):pass
   return ehf
@@ -71,7 +92,7 @@ def dups(emptyhashfiles):
   for hf in emptyhashfiles:
     with open(hf,'r') as f:
       lns = f.readlines()
-    assert len(lns)==5 #.remdups_* ignored
+    assert len(lns)==7 #.remdups_* ignored
   return rd
 
 @pytest.fixture
@@ -137,11 +158,11 @@ def test_append_update(request,a):
 
 ##Hasher
 
-def test_haslist_default(tmpworkdir):
+def test_hashlist_default(tmpworkdir):
   h=Hasher()
   assert h.hashfiles==['.remdups_c.sha256']
 
-def test_haslist_more(tmpworkdir):
+def test_hashlist_more(tmpworkdir):
   lenah = len(Hasher.hashfilenames)
   for hf in Hasher.hashfilenames:
     with open(hf,'w'):pass
@@ -179,7 +200,7 @@ def test_hash_and_write(emptyhashfiles,othertmpdir):
           nf.write(buf)
       same = filecmp.cmp(f, nfnf, False)
       assert same
-  assert allduplicates==[hshr.relpath(x) for x in ['sub/img.jpg', 'sub/newimg.jpg']]
+  assert allduplicates==[hshr.relpath(x) for x in ['sometxt.txt','some_files/img.jpg','sub/img.jpg','sub/newimg.jpg']]
   hshr.clear()
   assert len(hshr.path_hash)==0
   allduplicates = []
@@ -199,7 +220,7 @@ def test_hash_and_write(emptyhashfiles,othertmpdir):
   withcontent = 0
   for f,duplicates,content in hshr.foreachcontent('.'):
     withcontent += (content!=[])
-  assert withcontent == 3
+  assert withcontent == 4
   #reload with no .remdups_c* and no .remdups_e*
   for hf in glob('.remdups_*'):
     if '_e.' in hf:
@@ -220,7 +241,8 @@ def test_resort(emptyhashfiles,othertmpdir):
   with open(hf,'w'): pass
   hshr = Hasher()
   assert len(glob(othertmpdir+'/**/*')) == 3
-  assert len([f for f in hshr.scandir(othertmpdir,filter=['*.jpg'])]) == 1
+  assert len(glob(othertmpdir+'/**/*_1.jpg')) == 1
+  assert len([f for f in hshr.scandir(othertmpdir,filter=['*.jpg'])]) == 2
   assert len([f for f in hshr.scandir(othertmpdir,filter=['*.no'])]) == 0
   os.chdir(cd)
 
@@ -241,32 +263,26 @@ def test_find_dups(dups,cmd,script):
       cmds=getattr(dups,cmd)(script=argparse.FileType('w',encoding='utf-8')(script))
   cmds=getattr(dups,cmd)(script=argparse.FileType('w',encoding='utf-8')(script),sort="%y%m/%d%H%M%S")
   assert len(dups.with_same_tail)==2
-  assert len(dups.no_same_tail)==0 #script.sh has no duplicate
+  assert len(dups.no_same_tail)==1 #script.sh has no duplicate
   tails = [tail for tail, paths in dups.no_same_tail]
   assert not any(tails)
-  assert len(dups.with_same_tail[0][1]) == 2
-  if cmd=='rm':
-    assert len(cmds) == 14
-  else:
-    assert len(cmds) == 15
+  assert len(dups.with_same_tail[0][1]) == 3
+  assert len(cmds) > 1
   anybackslashes = any(['\\' in x for x in cmds])
   if script.endswith('.bat'):
     assert anybackslashes
   else:#.sh
     assert not anybackslashes
   if cmd=='rm':#remove all but one
-    assert sum([re.match('^'+dups.comment+'>#',x) and 1 or 0 for x in cmds]) == 2
+    assert sum([re.match('^'+dups.comment+'>#',x) and 1 or 0 for x in cmds]) == 4
   else:#copy one and leave the rest
-    assert sum([re.match('^'+dups.comment+'>#',x) and 1 or 0 for x in cmds]) == 2
+    assert sum([re.match('^'+dups.comment+'>#',x) and 1 or 0 for x in cmds]) == 3
   dups.args.script.close()
   assert os.path.exists(script)
   lns = []
   with open(script,'r') as f:
     lns = f.readlines()
-  if cmd=='rm':
-    assert len(lns) == 14
-  else:
-    assert len(lns) == 15
+  assert len(lns) > 1
           
 @pytest.fixture
 def updated(here_otherdir):
@@ -274,32 +290,105 @@ def updated(here_otherdir):
   main(parse_args(['remdups','update',other]))
   for hf in glob('.remdups_*'):
     with open(hf,'r') as hfh:
-      lns = hfh.readlines()
+      lns = [convunix(x) for x in hfh.readlines()]
     assert len(lns)>0
     for e in lns:
-      assert normp('//') in e
+      assert '//' in e
   return here,other
 
-def test_cp(updated):
+def test_dupsoftail(updated,capfd):
+  main(parse_args(['remdups','dupsoftail','img.jpg']))
+  out, err = capfd.readouterr()
+  assert 'img.jpg' in out
+  assert 'newimg.jpg' in out
+
+def test_dupsoftail_notail(updated,capfd):
+  main(parse_args(['remdups','dupsoftail','img']))
+  out, err = capfd.readouterr()
+  assert 'img.jpg' not in out
+
+def test_dupsof(updated,capfd):
+  main(parse_args(['remdups','dupsof','sub/new']))
+  out, err = capfd.readouterr()
+  assert 'img.jpg' in out
+  assert 'newimg.jpg' in out
+
+def test_dupsof_nofile(updated,capfd):
+  with pytest.raises(ValueError):
+    main(parse_args(['remdups','dupsof','img']))
+
+@pytest.mark.parametrize('script',['s.sh','s.bat','s.py'])
+def test_cp(updated,script):
   here,other = updated
-  main(parse_args(['remdups','cp','-s','s.sh','-i','sub']))
+  main(parse_args(['remdups','cp','-s',script,'-o','sub','--safe']))
   ld = os.listdir('.')
-  assert 'img.jpg' not in ld #first s.sh must run
-  assert 's.sh' in ld
-  with open('s.sh','r') as s:
+  assert 'img.jpg' not in ld #first script must run
+  assert script in ld
+  with open(script,'r') as s:
     lns = s.readlines()
     assert len(lns)>1
-  ru = subprocess.run('sh s.sh')
+  ru = run(script)
+  assert ru.returncode == 0
+  ld = os.listdir('.')
+  assert 'img.jpg' in ld
+  assert 'newimg.jpg' in ld
+  assert 'some.html' in ld
+  assert 'sub' not in ld
+
+@pytest.mark.parametrize('script',['s.sh','s.bat','s.py'])
+def test_mv(updated,script):
+  here,other = updated
+  main(parse_args(['remdups','mv','-s',script,'-i','sub','-c','some']))
+  ld = os.listdir('.')
+  assert 'img.jpg' not in ld #first script must run
+  assert script in ld
+  with open(script,'r') as s:
+    lns = s.readlines()
+    assert len(lns)>1
+  ru = run(script)
   assert ru.returncode == 0
   ld = os.listdir('.')
   assert 'img.jpg' not in ld
   assert 'newimg.jpg' not in ld
-  assert 'some.txt' in ld
+  assert 'some.html' not in ld
   assert 'sub' in ld
   ldsub = os.listdir('sub')
   assert 'img.jpg' in ldsub
   assert 'newimg.jpg' in ldsub
+  oldldsub = os.listdir(joinp(other,'sub'))
+  assert 'img.jpg' not in oldldsub
+  assert 'newimg.jpg' not in oldldsub
           
+@pytest.fixture
+def updatedhere(emptyhashfiles):
+  main(parse_args(['remdups','update']))
+  for hf in glob('.remdups_*'):
+    with open(hf,'r') as hfh:
+      lns = [convunix(x) for x in hfh.readlines()]
+    assert len(lns)>0
+    for e in lns:
+      assert '//' not in e
+  return os.getcwd()
+
+@pytest.mark.parametrize('script',['s.sh','s.bat','s.py'])
+def test_rm(updatedhere,script):
+  main(parse_args(['remdups','rm','-s',script,'-o','.txt']))
+  ld = os.listdir('.')
+  assert 'img.jpg' in ld #first script must run
+  assert script in ld
+  with open(script,'r') as s:
+    lns = s.readlines()
+    assert len(lns)>1
+  ru = run(script)
+  assert ru.returncode == 0
+  ld = os.listdir('.')
+  assert 'img.jpg' in ld
+  assert 'newimg.jpg' in ld
+  assert 'some.html' in ld
+  assert 'sub' not in ld #empty folders are deleted
+  some_files = os.listdir('some_files')
+  assert 'img.jpg' in some_files
+
 ##other
 def test_convuinx(request):
   fn=r"U:\w&k(2)\wf g.txt"
@@ -309,9 +398,6 @@ def test_convuinx(request):
 #help(tempfile.gettempdir)
 #help(tempfile.tempdir)
 
-#def test_haslist_default(tmpworkdir):
-#  h=Hasher()
-#  assert os.path.exists('.remdups_c.sha256')
 
 #hashlist = Hashlist([('ha', 'b/a'), ('ha', 'c/a'), ('ha', 'u/v/a'),
 #                     ('hb', 'u/v/y'), ('hb', 'c/x'), ('hb', 'b/a'),
