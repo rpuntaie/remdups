@@ -2,6 +2,9 @@
 
 #py.test --cov remdups --cov-report term-missing
 
+#This succeeds on Windows with c:\msys64\usr\bin in %PATH% and
+#mv C:\Windows\System32\find.exe C:\Windows\System32\findw.exe
+
 import os
 import tempfile
 import subprocess
