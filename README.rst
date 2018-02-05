@@ -172,9 +172,11 @@ loaded content immediately to create the new file, if not duplicate.
       allduplicates.append(f)
     else:
       assert content!=[] #some .remdups_ must be with (c)ontent
-      with open('afilehere','wb') as nf:
+      nfilename = 'afilehere'
+      with open(nfilename,'wb') as nf:
         for buf in content:
           nf.write(buf)
+      shutil.copystat(filename, nfilename)
 
 ``foreachcontent()`` uses ``scandir()``, but does not add duplicate files to the ``.remdup_`` files.
 

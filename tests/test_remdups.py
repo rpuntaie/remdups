@@ -205,6 +205,7 @@ def test_hash_and_write(emptyhashfiles,othertmpdir):
       with open(nfnf,'wb') as nf:
         for buf in content:
           nf.write(buf)
+      shutil.copystat(f, nfnf)
       same = filecmp.cmp(f, nfnf, False)
       assert same
   if sys.platform == 'win32':
@@ -287,6 +288,7 @@ def test_find_dups(dups,cmd,script):
     assert sum([re.match('^'+dups.comment+'>#',x) and 1 or 0 for x in cmds]) == 4
   else:#copy one and leave the rest
     assert sum([re.match('^'+dups.comment+'>#',x) and 1 or 0 for x in cmds]) == 3
+    assert sum([re.search('_\d\.jpg',x) and 1 or 0 for x in cmds]) == 1
   dups.args.script.close()
   assert os.path.exists(script)
   lns = []
