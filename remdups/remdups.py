@@ -401,12 +401,12 @@ class Command:
             'remove({0})'
             ],
          "cp": [#0,1,2=fn, dest dir, dest full pth
-            'mkdir -p {1} & cp {0} {2}',
+            'mkdir -p {1} && cp {0} {2}',
             'echo F|xcopy /Y {0} {2}',
             'makedirs({1},exist_ok=True);copy2({0}, {2})'
             ],
          "mv": [
-            'mkdir -p {1} & mv {0} {2}',
+            'mkdir -p {1} && mv {0} {2}',
             'mkdir {1} & move /Y {0} {2}',
             'makedirs({1},exist_ok=True);move({0}, {2})' #the space is needed (see tocmds())
             ]
