@@ -9,13 +9,6 @@ import os, os.path
 
 __version__ = '1.3'
 
-with open('requirements.txt') as f: requires=f.read().splitlines()
-with open('requirements.test.txt') as f: develop=f.read().splitlines()
-
-extras = {
-    'develop': develop
-}
-
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
@@ -43,8 +36,8 @@ setup(name = 'remdups',
         'Topic :: System :: Systems Administration'
         ],
 
-    install_requires = requires,
-    extras_require = {'develop': develop},
+    install_requires = ['pillow'],
+    extras_require = {'develop': ['pillow', 'piexif', 'pytest-toolbox', 'pytest-coverage']},
     long_description = read('README.rst'),
     packages=['remdups'],
     include_package_data=False,

@@ -1,4 +1,0 @@
-pillow
-piexif
-pytest-toolbox
-pytest-coverage
