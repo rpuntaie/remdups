@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 #sudo python setup.py bdist_wheel
 #twine upload ./dist/remdups*.whl
@@ -7,7 +7,7 @@ from setuptools import setup
 import platform
 import os, os.path
 
-__version__ = '1.3'
+__version__ = '1.3.1'
 
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()

@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 # -*- coding: utf-8 -*
 
 # Homepage: https://github.org/rpuntaie/remdups
@@ -12,6 +12,7 @@
 # 2013-10-31: Version 1.1 (documentation changes/corrections)
 # 2016-05-29: Version 1.2 (fails to install -> fix)
 # 2018-01-24: Version 1.3 (.remdups_c.sha256; .sh, .bat, .py script; rm, cp, mv commands)
+# 2018-01-24: Version 1.3.1 (smaller fixes)
 
 r'''
 Usage:
@@ -87,7 +88,7 @@ joinp = os.path.join
 #fnmatch(normp('ax/ay/az/f'),normp('ax/*/az/*'))#True
 #fnmatch(normp('ax/ay/az/f'),normp('ax/*/f'))#True
 
-__version__ = '1.3' #this is also in setup.py
+__version__ = '1.3.1' #this is also in setup.py
 __appname__ = "Remove Duplicate Files"
 __author__  = "Roland Puntaier <roland.puntaier@gmail.com>"
 __license__ = "The MIT License (MIT)"
